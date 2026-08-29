@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/steamtoad/english-reading-lab/schemas/vocabulary-candidate-v1.schema.json",
+  "title": "ERL Vocabulary Candidate v1",
+  "type": "object",
+  "required": ["ordinal", "surface_form", "lemma", "pos", "lexical_type", "candidate_confidence", "first_relevant_occurrence", "context", "enrichment"],
+  "properties": {
+    "ordinal": {"type": "integer", "minimum": 1},
+    "surface_form": {"type": "string", "minLength": 1},
+    "lemma": {"type": "string", "minLength": 1},
+    "pos": {"type": "string", "minLength": 1},
+    "lexical_type": {"enum": ["word", "phrase", "phrasal_verb", "idiom", "collocation", "fixed_expression"]},
+    "candidate_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "first_relevant_occurrence": {"type": "object", "required": ["text"], "properties": {"text": {"type": "string", "minLength": 1}}, "additionalProperties": true},
+    "context": {"type": "string", "minLength": 1},
+    "enrichment": {
+      "type": "object",
+      "required": ["ipa", "translation_ru", "definition_en", "sense_gloss", "cefr", "register", "rarity", "labels", "semantic_relations", "collocations"],
+      "properties": {
+        "ipa": {"type": "string"},
+        "translation_ru": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "definition_en": {"type": "string", "minLength": 1},
+        "sense_gloss": {"type": "string", "minLength": 1},
+        "cefr": {"type": "object", "required": ["value", "confidence", "provenance"], "properties": {"value": {"enum": ["A1", "A2", "B1", "B2", "C1", "C2"]}, "confidence": {"type": "number", "minimum": 0, "maximum": 1}, "provenance": {"type": "string", "minLength": 1}}, "additionalProperties": false},
+        "register": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "rarity": {"type": "string"},
+        "labels": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "semantic_relations": {"type": "array", "items": {"type": "object"}},
+        "collocations": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

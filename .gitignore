@@ -19,5 +19,12 @@
 *.temp
 .state
 
-# Local development agents
-/.claude/
+# OpenClaw Lexi workspace (local agent infrastructure)
+/openclaw-workspace-state.json
+/HEARTBEAT.md
+/IDENTITY.md
+/SOUL.md
+/TOOLS.md
+/USER.md
+/skills/
+/.scripts/erl/docs/lexi-agent.md

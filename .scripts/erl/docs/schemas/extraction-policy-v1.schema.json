@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/steamtoad/english-reading-lab/schemas/extraction-policy-v1.schema.json",
+  "title": "ERL Extraction Policy v1",
+  "type": "object",
+  "required": ["identity", "schema_version", "threshold", "lexical_types", "selection_rules", "exclusions", "proper_name_policy", "uncertainty_policy", "enrichment_requirements"],
+  "properties": {
+    "identity": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "schema_version": {"const": 1},
+    "threshold": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["A1", "A2", "B1", "B2", "C1", "C2"]}},
+    "lexical_types": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["word", "phrase", "phrasal_verb", "idiom", "collocation", "fixed_expression"]}},
+    "selection_rules": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "exclusions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "proper_name_policy": {"type": "string", "minLength": 1},
+    "uncertainty_policy": {"type": "string", "minLength": 1},
+    "enrichment_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ipa", "translation_ru", "definition_en", "sense_gloss", "cefr", "register", "rarity", "labels", "semantic_relations", "collocations"],
+      "properties": {
+        "ipa": {"type": "boolean"},
+        "translation_ru": {"type": "boolean"},
+        "definition_en": {"type": "boolean"},
+        "sense_gloss": {"type": "boolean"},
+        "cefr": {"type": "boolean"},
+        "register": {"type": "boolean"},
+        "rarity": {"type": "boolean"},
+        "labels": {"type": "boolean"},
+        "semantic_relations": {"type": "boolean"},
+        "collocations": {"type": "boolean"}
+      }
+    }
+  },
+  "additionalProperties": false
+}
