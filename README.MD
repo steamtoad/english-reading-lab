@@ -2,6 +2,8 @@
 
 **Русский** | **English**
 
+Нормативные требования: `.scripts/erl/docs/requirements.md`.
+
 ---
 
 # Русский
@@ -79,7 +81,7 @@ canonical Vault documents
 └── erl/
     ├── works/              # persistent domain state
     │   └── <work-slug>/
-    │       ├── work.manifest
+    │       ├── work.json
     │       ├── sources/
     │       └── generations/
     ├── staging/            # extraction/enrichment output
@@ -124,6 +126,12 @@ Book Topic UUID
 Новая extraction/card/lexical policy может быть реализована через Reduce старой generation и создание нового Book Topic UUID.
 
 `<work-slug>` в `.state/erl/works/<work-slug>/` удобен человеку, но не является identity.
+
+ERL-local `WORK_ID`, `SOURCE_ID`, `EXTRACTION_ID` и `TXID` используют lowercase
+UUID v4. UUID Vault documents остаются host UUID v1.
+
+Book Topic получает отдельный host-compatible `:key-topic:` и canonical Topic
+presentation. Этот thematic key не является `WORK_ID` и не используется как ERL foreign key.
 
 ---
 
@@ -268,7 +276,7 @@ Sequence принадлежит Book generation и хранится в `.state/e
 
 ## Classic Reduce — поддерживаемая возможность
 
-Classic `zt-reduce` можно применять к canonical Vault documents, используемым ERL.
+Classic `zt-reduce` можно применять с active Topic seed, используемой ERL.
 
 ERL не требует модификации Classic workflow и не требует специального исключения ERL documents.
 
@@ -282,15 +290,18 @@ CLOSURE_REQUIRED
 
 Это означает: host-level Reduce допустим, но ERL dependency closure ещё не завершён.
 
+Classic successor Topic не становится ERL Book generation автоматически.
+External close получает `GENERATION_CLOSED_EXTERNALLY`; состояние сверяет
+`erl-classic-reduce-reconcile` через dry-run и explicit apply.
+
 ---
 
 ## erl-book-reduce
 
 `erl-book-reduce` — отдельный generation-aware Reduce.
 
-Он может переводить в deprecated не только Memo, но и Note, если документ зарегистрирован как reducible generation member или попал в dependency closure.
-
-При этом durable Chapter Note является исключением: ordinary Book Reduce не закрывает Chapter только из-за принадлежности к work/source.
+Он может переводить в deprecated зарегистрированные Book Topic и Memo.
+Canonical Note никогда не deprecated автоматически; durable Chapter Note остаётся active.
 
 ### Cross-book dependency closure
 
@@ -348,6 +359,11 @@ Journal:
 
 Crash оставляет recovery journal. Новая Reduce transaction не запускается до recovery/rollback предыдущей.
 
+После успешного commit metadata каждой закрытой generation удаляется из `works/`:
+generation file, policy, sequence, ingestion receipts, dependency metadata,
+manifest reference и active pointer. Compact committed transaction manifest/result
+остаётся для audit, а удаление полностью покрывается rollback journal до commit.
+
 ---
 
 ## Source books и copyright boundary
@@ -382,6 +398,7 @@ erl-chapter-vocabulary-extract
 erl-vocabulary-ingest
 erl-chapter-vocabulary-ingest
 erl-book-reduce
+erl-classic-reduce-reconcile
 erl-check
 ```
 
@@ -420,8 +437,10 @@ Classic zt-reduce
 ```text
 erl-book-reduce
 = generation-aware transactional feature
-= Memo + reducible Note support
+= registered Topic + Memo
+= never automatically deprecates Note
 = global dependency closure
+= removes committed generation metadata from works/
 ```
 
 ERL расширяет workflow Zettelkasten Vault, но не превращает Vault document contract в ERL schema.
@@ -483,6 +502,10 @@ Vault documents
 
 It stores logical work identity, sources, durable Chapter UUID mappings, Book generations, reading sequences, ingestion receipts, and lifecycle/dependency metadata.
 
+State Contract v1 uses UTF-8 JSON with `work.json`, `sources/<SOURCE_ID>.json`,
+and `generations/<BOOK_TOPIC_UUID>.json`. ERL-local identifiers use lowercase
+UUID v4; Vault document UUIDs remain host UUID v1.
+
 ---
 
 ## Work, generation and Chapter identity
@@ -490,6 +513,9 @@ It stores logical work identity, sources, durable Chapter UUID mappings, Book ge
 A logical work has a stable `WORK_ID` stored only in ERL work state.
 
 A Book Topic UUID identifies one semantic processing generation.
+
+A Book Topic has a separate host-compatible `:key-topic:` and canonical Topic
+presentation. The thematic key is not `WORK_ID` and is not an ERL foreign key.
 
 A Chapter is a durable Note whose UUID can be reused across multiple generations.
 
@@ -535,11 +561,15 @@ The sequence belongs to a Book generation and is stored in persistent ERL work s
 
 ## Classic Reduce
 
-Classic `zt-reduce` is supported on ERL-used canonical Vault documents.
+Classic `zt-reduce` is supported with an ERL-used active Topic seed.
 
 ERL does not require Classic Zettelkasten to identify or exclude ERL documents.
 
 If a host-level Reduce leaves an active hard dependency pointing to a deprecated target, ERL reports `CLOSURE_REQUIRED`.
+
+The Classic successor is not adopted as an ERL Book generation automatically.
+`erl-classic-reduce-reconcile` records `GENERATION_CLOSED_EXTERNALLY` and may
+adopt the successor only through dry-run and explicit apply.
 
 ---
 
@@ -547,7 +577,8 @@ If a host-level Reduce leaves an active hard dependency pointing to a deprecated
 
 `erl-book-reduce` is the generation-aware, dependency-aware Reduce operation.
 
-It may deprecate reducible Memo and Note documents. Durable Chapter Notes are excluded from the ordinary Book-generation mutation set.
+It may deprecate registered Book Topic and Memo documents. It never automatically
+deprecates a canonical Note; durable Chapter Notes remain active.
 
 Because Vocabulary is global and belongs to its first-acquisition generation, reducing one book may require a cross-book dependency closure involving many later generations.
 
@@ -556,6 +587,10 @@ This is expected behaviour.
 The full closure must be shown with a dry run before any cascade, and extra generations require explicit inclusion.
 
 Reduce is transactional and uses recovery journals under `.state/erl/transactions/`.
+
+After commit, closed-generation policy, sequence, receipts, dependency metadata,
+generation file, manifest reference, and active pointer are removed from `works/`.
+A compact committed transaction manifest/result remains for audit.
 
 ---
 
@@ -583,4 +618,7 @@ Classic zt-reduce
 
 erl-book-reduce
 = explicit generation-aware feature
+= registered Topic and Memo only
+= never automatically deprecates Note
+= removes committed generation metadata from works/
 ```

@@ -188,7 +188,7 @@ ERL использует единый local namespace:
 └── erl/
     ├── works/              # persistent ERL domain state
     │   └── <work-slug>/
-    │       ├── work.manifest
+    │       ├── work.json
     │       ├── sources/
     │       └── generations/
     ├── staging/            # intermediate extraction/enrichment data
@@ -236,14 +236,17 @@ cache/ и derived indexes должны быть полностью rebuildable.
 
 ```text
 ERL-STATE-008
-transactions/ может очищаться только после завершения/rollback transaction
-и согласно recovery policy.
+Незавершённые transaction artifacts не очищаются. После commit/rollback
+backup payload может очищаться согласно recovery policy, но compact committed
+manifest/result закрытой generation сохраняется как persistent audit record.
 ```
 
 ```text
 ERL-STATE-009
 Persistent work state должен быть text-based, deterministic и inspectable из Unix CLI.
-Предпочтительны лёгкие форматы вроде TSV/JSON/JSONL/YAML при наличии существующего parser tooling.
+Canonical Persistent Work State v1 использует JSON согласно ERL-STATE-011/012.
+TSV/JSONL/YAML допустимы только для noncanonical staging, reports или cache,
+если конкретный contract явно не устанавливает иное.
 ```
 
 ```text
@@ -277,8 +280,9 @@ ERL-STATE-013
 ```text
 ERL-STATE-014
 WORK_ID, SOURCE_ID, EXTRACTION_ID и TXID являются independently generated
-lowercase UUID в canonical 8-4-4-4-12 representation и не выводятся
-из пользовательского текста или filesystem paths.
+UUID v4 в lowercase canonical 8-4-4-4-12 representation и не выводятся
+из пользовательского текста или filesystem paths. Это ERL-local identifiers,
+не Vault document UUID. Vault documents продолжают использовать host UUID v1.
 ```
 
 ```text
@@ -813,9 +817,11 @@ Generation membership и Chapter membership Vocabulary/Occurrence
 
 ```text
 ERL-WORKSTATE-008
-Persistent work state и Vault documents проверяются двусторонне:
-state record не может ссылаться на отсутствующий UUID,
-а structural role документа должна соответствовать recorded role.
+Для retained generation state и active ERL documents проверка двусторонняя:
+state record не может ссылаться на отсутствующий UUID, а structural role
+документа должна соответствовать recorded role. Deprecated documents generation,
+успешно закрытой через erl-book-reduce, могут не иметь recorded role в works/
+после удаления metadata согласно ERL-REDUCE-025.
 ```
 
 ```text
@@ -923,7 +929,8 @@ ERL-SEQ-008
 Deprecated documents не входят в active reading sequence.
 После успешного erl-book-reduce historical membership/ordinal не сохраняются
 в .state/erl/works/. Audit закрытой sequence обеспечивается deprecated Vault
-documents и committed transaction manifest согласно retention policy.
+documents и обязательным compact committed transaction manifest/result,
+который не удаляется обычной очисткой transaction backups.
 ```
 
 ---
@@ -953,8 +960,8 @@ Deprecated documents не входят в новые active sequences.
 ```text
 ERL-DEP-005
 Deprecated Vault documents сохраняются для history.
-Committed transaction manifest/result может сохраняться для audit,
-но generation-specific persistent metadata успешно закрытой generation
+Compact committed transaction manifest/result сохраняется для audit,
+но generation-specific operational metadata успешно закрытой generation
 удаляется из .state/erl/works/ согласно ERL-REDUCE-025.
 ```
 
@@ -1482,6 +1489,13 @@ external close отражается как GENERATION_CLOSED_EXTERNALLY.
 ERL-CHECK-024
 Незарегистрированный Classic successor не считается ERL Book generation
 и показывается в reconciliation diagnostics.
+```
+
+```text
+ERL-CHECK-025
+После committed erl-book-reduce в .state/erl/works/ отсутствуют generation file,
+manifest reference и active pointer каждой закрытой generation; compact committed
+transaction manifest/result существует и достаточен для заявленного audit.
 ```
 
 ---

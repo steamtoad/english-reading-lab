@@ -4,7 +4,7 @@
 
 Этот repository содержит English Reading Lab (ERL) plugin, его skills, scripts, tests, fixtures и документацию.
 
-Нормативный источник требований: `requirements.md`.
+Нормативный источник требований: `.scripts/erl/docs/requirements.md`.
 
 Главная архитектурная граница:
 
@@ -31,7 +31,7 @@ templates/
 tests/
 fixtures/
 docs/
-requirements.md
+.scripts/erl/docs/requirements.md
 README.MD
 AGENTS.MD
 ERL-local state/schema tooling
@@ -144,7 +144,7 @@ ERL state namespace:
 └── erl/
     ├── works/              # PERSISTENT domain state
     │   └── <work-slug>/
-    │       ├── work.manifest
+    │       ├── work.json
     │       ├── sources/
     │       └── generations/
     ├── staging/            # intermediate model output
@@ -165,6 +165,10 @@ Vault documents + .state/erl/works/
 Очищаемые runtime области должны быть адресованы явно (`cache/`, допустимый staging, завершённые transaction artifacts и т.п.).
 
 `<work-slug>` — human-readable path locator, не identity.
+
+Persistent Work State Contract v1 использует UTF-8 JSON. `WORK_ID`, `SOURCE_ID`,
+`EXTRACTION_ID` и `TXID` — ERL-local lowercase UUID v4; Vault document UUID
+по-прежнему создаётся host constructor как UUID v1.
 
 ---
 
@@ -343,7 +347,7 @@ WORK_ID
 logical metadata
 source records
 Chapter UUID mapping
-Book generation UUIDs
+retained Book generation UUIDs
 active generation
 processing policy identity
 generation members
@@ -393,7 +397,9 @@ Vault document UUID
 
 Следующая Chapter продолжает active generation sequence.
 
-Deprecated documents исключаются из active sequence, но historical state сохраняется.
+Deprecated documents исключаются из active sequence. После committed
+`erl-book-reduce` generation sequence и membership удаляются из `works/`;
+audit сохраняется в compact committed transaction manifest/result.
 
 ---
 
@@ -414,7 +420,7 @@ Deprecated documents:
 
 ## 16. Classic zt-reduce is supported
 
-Classic `zt-reduce` разрешён для canonical Vault documents, созданных или используемых ERL.
+Classic `zt-reduce` разрешён с active Topic seed, созданной или используемой ERL.
 
 ERL не требует изменения Classic workflow и не требует, чтобы Classic workflow распознавал ERL documents.
 
@@ -434,6 +440,10 @@ CLOSURE_REQUIRED
 
 Это поддерживаемый trigger для generation-aware closure, а не запрет Classic Reduce.
 
+Classic successor не становится ERL Book generation автоматически. External close
+получает состояние `GENERATION_CLOSED_EXTERNALLY`; запись state и optional adoption
+successor выполняет `erl-classic-reduce-reconcile` через dry-run и explicit apply.
+
 ---
 
 ## 17. erl-book-reduce
@@ -450,14 +460,15 @@ Initial mutation set включает Book Topic и reducible generation members
 
 ```text
 Memo
-Note
+Topic
 ```
 
 если document зарегистрирован как reducible member или входит в dependency closure.
 
 Тип документа сам по себе не определяет reducibility.
 
-**Durable Chapter Note — исключение:** обычный Book Reduce не закрывает Chapter только потому, что она принадлежит work/source.
+**Canonical Note никогда не deprecated автоматически.** Durable Chapter Note
+всегда остаётся active при обычном Book Reduce.
 
 ### Dependency closure
 
@@ -465,6 +476,7 @@ Note
 
 ```text
 active Occurrence -> active Vocabulary
+active generation state -> active registered Book Topic
 ```
 
 Если закрываемая Vocabulary имеет active Occurrence в Books B/C/D, owning generations B/C/D входят в closure.
@@ -517,6 +529,12 @@ Crash -> recovery journal; новая Reduce transaction блокируется 
 
 Rollback не перетирает молча неожиданные пользовательские изменения.
 
+Для каждой подтверждённой generation Reduce удаляет из `.state/erl/works/`
+generation file, policy, sequence, receipts, dependency metadata, manifest reference
+и соответствующий active pointer. Удаление входит в ту же transaction и до commit
+полностью покрывается journal backup. Compact committed manifest/result сохраняется
+для audit после допустимой очистки backups.
+
 ---
 
 ## 18. Source books and copyright
@@ -551,6 +569,7 @@ erl-chapter-vocabulary-extract
 erl-vocabulary-ingest
 erl-chapter-vocabulary-ingest
 erl-book-reduce
+erl-classic-reduce-reconcile
 erl-check
 ```
 
@@ -570,7 +589,7 @@ Book-level orchestration не вводит новую semantics; оно испо
 Перед завершением изменения проверить минимум:
 
 ```text
-[ ] requirements.md соблюдён
+[ ] .scripts/erl/docs/requirements.md соблюдён
 [ ] нет :erl-* attributes в generated document contract
 [ ] ERL не source .scripts/zettelkasten/
 [ ] canonical object creation идёт через objects/
@@ -587,8 +606,11 @@ Book-level orchestration не вводит новую semantics; оно испо
 [ ] CLOSURE_REQUIRED определяется корректно
 [ ] erl-book-reduce dry-run показывает полный closure
 [ ] wide cross-book closure не ограничивается одной книгой
-[ ] erl-book-reduce может закрывать reducible Memo и Note
-[ ] durable Chapter Note не входит в ordinary Book Reduce mutation set
+[ ] erl-book-reduce закрывает только registered Topic/Memo, не Note
+[ ] durable Chapter Note не входит в Book Reduce mutation set
+[ ] generation metadata удаляется из works/ согласно ERL-REDUCE-025
+[ ] compact committed transaction manifest/result сохраняется для audit
+[ ] Classic successor требует erl-classic-reduce-reconcile
 [ ] Reduce transaction recoverable/rollback-safe
 [ ] source books/copyright excerpts не попадают в public Git
 [ ] shellcheck/asciidoctor/git diff --check выполняются где применимо
@@ -627,9 +649,10 @@ Classic zt-reduce
 ```text
 erl-book-reduce
 = explicit generation-aware feature
-= may reduce Memo and Note
+= may reduce registered Topic and Memo
+= never automatically reduces Note
 = computes global dependency closure
-= preserves durable Chapter Notes by ordinary policy
+= removes closed generation metadata from works/
 ```
 
 При сомнении ERL должен адаптироваться к Vault contract, а не превращать Vault contract в ERL-specific schema.
