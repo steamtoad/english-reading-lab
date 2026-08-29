@@ -8,537 +8,423 @@
 
 ## Описание
 
-English Reading Lab — это проект для подготовки к чтению англоязычных книг через персональный словарь, построенный на базе Zettelkasten.
-
-Проект использует готовый скриптовый движок Zettelkasten-CLI и рассматривает каждую книгу как отдельную предметную область для изучения английского языка.
-
-Основная идея проста:
-
-> перед чтением книги собрать сложную лексику в том порядке, в котором она впервые появляется в тексте, превратить её в связанные заметки и использовать получившуюся цепочку для подготовки к чтению.
-
-Проект ориентирован прежде всего на лексику уровней:
-
-* B2;
-* C1;
-* C2;
-
-а также на:
-
-* редкие слова;
-* литературную лексику;
-* архаизмы;
-* фразовые глаголы;
-* идиомы;
-* устойчивые выражения;
-* collocations;
-* специфическую лексику конкретной книги.
-
-Для каждого lexical item могут сохраняться:
-
-* исходная форма в тексте;
-* lemma;
-* часть речи;
-* уровень CEFR;
-* транскрипция;
-* перевод;
-* определение;
-* контекст первого появления;
-* глава;
-* порядок первого появления;
-* связанные слова;
-* синонимы;
-* антонимы;
-* устойчивые сочетания;
-* ссылки на предыдущую и следующую карточку.
-
-Проект строится вокруг нескольких принципов:
-
-* книги остаются локальными файлами;
-* словарь хранится в обычных AsciiDoc-документах;
-* Git используется как история изменений;
-* Zettelkasten является основной моделью хранения знаний;
-* книга является темой, а vocabulary items — связанными с ней Note;
-* порядок первого появления слов должен сохраняться;
-* автоматизация должна оставаться прозрачной и воспроизводимой;
-* агент не заменяет структуру данных и скрипты, а работает поверх них.
-
-В основе проекта лежат:
-
-* Zettelkasten-CLI;
-* AsciiDoc;
-* Git;
-* zsh;
-* OpenClaw;
-* Unix CLI.
-
----
-
-## Цель проекта
-
-Основная задача English Reading Lab — уменьшить лексический барьер перед чтением сложной английской литературы.
-
-Вместо изучения абстрактного списка английских слов проект строит словарь непосредственно из конкретной книги.
-
-Таким образом подготовка соответствует будущему порядку чтения:
+English Reading Lab (ERL) — отдельный plugin/domain workflow над Zettelkasten Vault для подготовки к чтению англоязычных книг через персональный словарь.
 
 ```text
-Book
-  ↓
-Chapter
-  ↓
-First occurrence
-  ↓
-Vocabulary Note
-  ↓
-Next Vocabulary Note
-```
+Zettelkasten Vault
+= canonical storage/object contracts
 
-Перед началом главы можно изучить именно те слова и выражения, которые встретятся в ней.
+Classic Zettelkasten
+= host workflow
 
-После этого книга становится не источником случайно возникающих незнакомых слов, а заранее подготовленным маршрутом изучения языка.
-
----
-
-## Модель знаний
-
-В основе проекта лежит модель Zettelkasten.
-
-Книга рассматривается как главная тема:
-
-```text
-Book Topic
-    │
-    ├── Vocabulary Note
-    ├── Vocabulary Note
-    ├── Vocabulary Note
-    └── ...
-```
-
-### Book
-
-Book представляет отдельный study case.
-
-Например:
-
-```text
-A Game of Thrones
-```
-
-Книга определяет:
-
-* источник vocabulary;
-* последовательность глав;
-* порядок первого появления слов;
-* контекст употребления;
-* собственную цепочку vocabulary notes.
-
-Одна книга может содержать тысячи связанных lexical items.
-
----
-
-### Vocabulary Note
-
-Vocabulary Note является самостоятельной единицей знания.
-
-Одна Note соответствует одному lexical item:
-
-```text
-word
-phrasal verb
-idiom
-collocation
-fixed expression
-```
-
-Пример логической структуры:
-
-```text
-= Foreboding
-
-:type: note
-:description: foreboding
-:cefr: C1
-:lexical-type: word
-
-Meaning
-Translation
-IPA
-Context
-Occurrences
-Related vocabulary
-Book links
-```
-
-Одна и та же Vocabulary Note может использоваться несколькими книгами.
-
-Если слово уже существует в Zettelkasten, повторная встреча не требует создания дубликата.
-
-Вместо этого существующая Note получает новую связь с источником.
-
----
-
-## Книги как Study Cases
-
-Исходные книги находятся внутри отдельной части репозитория.
-
-Каждая книга получает собственный каталог.
-
-Пример:
-
-```text
-books/
-├── a-game-of-thrones/
-├── a-clash-of-kings/
-├── the-hobbit/
-└── ...
-```
-
-Каталог книги содержит исходный материал и данные, относящиеся только к этому study case.
-
-Vocabulary при этом не разделяется физически по каталогам книг.
-
-Все vocabulary notes остаются частью общего Zettelkasten.
-
-Это позволяет одной карточке участвовать сразу в нескольких книгах и постепенно формировать общий персональный словарь.
-
----
-
-## Порядок первого появления
-
-Одним из основных свойств проекта является сохранение порядка, в котором vocabulary впервые появляется в книге.
-
-Для каждой книги формируется собственная последовательность:
-
-```text
-word 001
-   ↓
-word 002
-   ↓
-word 003
-   ↓
-word 004
-```
-
-Каждая Vocabulary Note может содержать ссылки на соседние элементы этой последовательности.
-
-Например:
-
-```text
-Previous in A Game of Thrones:
-link:UUID.adoc[...]
-
-Next in A Game of Thrones:
-link:UUID.adoc[...]
-```
-
-Таким образом vocabulary одной книги образует связанную цепочку, которую можно проходить последовательно перед чтением.
-
-Одна Vocabulary Note может одновременно входить в несколько таких цепочек.
-
----
-
-## Семантические связи
-
-Кроме последовательности появления, vocabulary связывается по смыслу.
-
-Например:
-
-```text
-foreboding
-├── premonition
-├── apprehension
-├── ominous
-└── unease
-```
-
-Могут использоваться связи:
-
-* synonym;
-* antonym;
-* related word;
-* derived word;
-* collocation;
-* phrasal verb;
-* semantic group.
-
-Таким образом словарь постепенно превращается из линейного списка в lexical knowledge graph.
-
----
-
-## Главы
-
-Глава используется как естественная граница подготовки к чтению.
-
-Для каждой главы можно построить собственный vocabulary index:
-
-```text
-Chapter 1
-
-B2: 42
-C1: 18
-C2: 3
-Phrases: 11
-Literary: 8
-```
-
-И далее последовательность vocabulary:
-
-```text
-1. deserted
-2. foreboding
-3. gaunt
-4. defiance
-5. ...
-```
-
-Это позволяет использовать модель:
-
-```text
-Prepare
-   ↓
-Read
-   ↓
-Review
-```
-
-Сначала изучается vocabulary главы.
-
-Затем читается сама глава.
-
-После чтения слова могут переходить в режим повторения.
-
----
-
-## Архитектура обработки
-
-Проект разделяет детерминированную обработку текста и работу языковой модели.
-
-Механическая часть должна выполняться обычными скриптами:
-
-```text
-Book
-  ↓
-Text extraction
-  ↓
-Tokenization
-  ↓
-Normalization
-  ↓
-Occurrence detection
-  ↓
-First occurrence
-  ↓
-Candidate list
-```
-
-После этого специализированный агент обогащает данные:
-
-```text
-Candidate
-  ↓
-CEFR estimation
-  ↓
-Part of speech
-  ↓
-IPA
-  ↓
-Translation
-  ↓
-Definition
-  ↓
-Semantic relations
-  ↓
-Vocabulary Note
-```
-
-После работы агента данные снова проходят детерминированные проверки:
-
-```text
-Vocabulary Note
-  ↓
-Metadata validation
-  ↓
-Duplicate validation
-  ↓
-Link validation
-  ↓
-Sequence validation
-  ↓
-Index generation
-```
-
-Общий принцип:
-
-```text
-Scripts
-   ↓
-Agent
-   ↓
-Scripts
-```
-
-LLM отвечает за языковую интерпретацию.
-
-Скрипты отвечают за структуру, порядок, ссылки и целостность данных.
-
----
-
-## Lexi
-
-Для English Reading Lab используется отдельный специализированный агент.
-
-Рабочее имя агента:
-
-```text
-Lexi
-```
-
-Lexi не является универсальным персональным ассистентом.
-
-Её предметная область ограничена:
-
-```text
-English Reading
-+
-Vocabulary Acquisition
-+
-Lexical Knowledge
-```
-
-Основные задачи Lexi:
-
-* анализировать vocabulary candidates;
-* определять lemma;
-* классифицировать lexical item;
-* оценивать уровень сложности;
-* находить транскрипцию;
-* формировать перевод;
-* объяснять значение;
-* находить semantic relations;
-* создавать Vocabulary Note;
-* связывать vocabulary с книгами;
-* поддерживать lexical graph;
-* проверять качество созданных карточек.
-
-Lexi работает поверх существующего Zettelkasten-CLI и не заменяет его.
-
----
-
-## OpenClaw
-
-Lexi предполагается запускать как отдельного агента OpenClaw.
-
-Агент получает собственный workspace, инструкции и ограниченный набор skills.
-
-Принцип:
-
-```text
-OpenClaw
-    │
-    └── Lexi
-          │
-          ├── vocabulary extraction
-          ├── vocabulary enrichment
-          ├── vocabulary linking
-          ├── vocabulary validation
-          └── Zettelkasten CLI
-```
-
-Агент должен иметь только необходимые для своей предметной области возможности.
-
-Это позволяет сделать его поведение более предсказуемым и воспроизводимым.
-
----
-
-## Zettelkasten-CLI
-
-English Reading Lab не создаёт новый механизм хранения заметок.
-
-Вместо этого он использует существующий Zettelkasten-CLI как инфраструктурный слой.
-
-Zettelkasten отвечает за:
-
-* UUID;
-* документы;
-* AsciiDoc;
-* ссылки;
-* Topics;
-* Notes;
-* поиск;
-* индексацию;
-* проверки;
-* Git workflow.
-
-English Reading Lab добавляет поверх него специализированную lexical domain model.
-
-Таким образом архитектура разделяется на два слоя:
-
-```text
 English Reading Lab
-        ↓
-Lexical domain model
-        ↓
-Zettelkasten-CLI
-        ↓
-AsciiDoc + Git + Unix
+= отдельный reading/vocabulary workflow
+```
+
+ERL использует существующие Topic/Note/Memo constructors, но не добавляет в Vault собственный document type и не требует ERL-specific AsciiDoc attributes.
+
+---
+
+## Цель
+
+ERL уменьшает лексический барьер перед чтением сложной английской литературы.
+
+Вместо абстрактного word list система извлекает lexical items непосредственно из книги, сохраняет порядок появления и строит последовательность карточек для подготовки к чтению.
+
+Первая extraction policy ориентирована на C1/C2 vocabulary. Следующие processing generations могут использовать другие CEFR thresholds, lexical policies и card formats.
+
+---
+
+## Документная модель
+
+ERL использует только canonical Vault objects:
+
+```text
+Book        = Topic
+Chapter     = Note
+Vocabulary  = Memo
+Occurrence  = Memo
+```
+
+Карточки остаются обычными `UUID.adoc` и используют только metadata host generating scripts.
+
+ERL **не создаёт**:
+
+```text
+:erl-kind:
+:erl-work-id:
+:erl-book:
+:erl-chapter:
+:erl-sequence:
+```
+
+и не использует `:key-topic:` как скрытый ERL foreign key.
+
+---
+
+## Где хранится ERL semantics
+
+ERL source of truth состоит из двух частей:
+
+```text
+canonical Vault documents
++
+.state/erl/works/
+```
+
+Структура:
+
+```text
+.state/
+└── erl/
+    ├── works/              # persistent domain state
+    │   └── <work-slug>/
+    │       ├── work.manifest
+    │       ├── sources/
+    │       └── generations/
+    ├── staging/            # extraction/enrichment output
+    ├── transactions/       # Reduce/recovery journals
+    ├── cache/              # rebuildable
+    └── locks/              # runtime
+```
+
+Главное отличие:
+
+```text
+.state/erl/works/
+!= disposable cache
+```
+
+В `works/` находятся logical work identity, source mappings, Chapter UUID mappings, Book generations, sequence, ingestion receipts и lifecycle/dependency state.
+
+`staging/`, `cache/` и runtime artifacts имеют отдельный lifecycle. Удалять `.state/` целиком как обычную очистку нельзя, если существует `works/`.
+
+---
+
+## Logical work и Book generation
+
+Logical work получает stable `WORK_ID`, но этот ID находится только в ERL work state.
+
+```text
+WORK_ID
+    -> source editions
+    -> Chapter UUIDs
+    -> Book Topic generations
+```
+
+Book хранится как canonical Topic:
+
+```text
+Book Topic UUID
+= semantic processing generation identity
+```
+
+Для одного WORK_ID допускается не более одной active generation.
+
+Новая extraction/card/lexical policy может быть реализована через Reduce старой generation и создание нового Book Topic UUID.
+
+`<work-slug>` в `.state/erl/works/<work-slug>/` удобен человеку, но не является identity.
+
+---
+
+## Chapter — durable source entity
+
+Chapter хранится как canonical Note.
+
+```text
+Chapter UUID
+= durable Vault identity
+```
+
+Chapter Note не получает ERL attributes и переживает смену Book generations.
+
+Source mapping хранится в `works/`:
+
+```text
+WORK_ID
+SOURCE_ID
+source fingerprint
+CHAPTER_LOCATOR
+source order
+Chapter UUID
+```
+
+Для EPUB первая версия использует SHA-256 source EPUB и canonical package-relative content href как preferred locator.
+
+---
+
+## Обработка книги по частям
+
+Default processing unit — Chapter:
+
+```text
+processing scope
+= active Book Topic UUID × Chapter UUID
+```
+
+Нормальный workflow:
+
+```text
+Chapter 1 -> extract -> ingest
+Chapter 2 -> extract -> ingest
+Chapter 3 -> extract -> ingest
+```
+
+Поэтому не требуется помещать всю книгу в один model context.
+
+Большая Chapter может быть разделена на temporary extraction segments без изменения persistent Chapter Note.
+
+---
+
+## Vocabulary Candidates
+
+`erl-chapter-vocabulary-extract` анализирует одну Chapter и пишет staging Candidates.
+
+Extraction batch имеет `EXTRACTION_ID`, generation UUID, Chapter UUID и policy identity.
+
+Candidate хранит:
+
+```text
+candidate order
+surface form
+lemma
+POS
+lexical type
+estimated CEFR
+confidence
+first relevant occurrence
+context
+```
+
+Один Candidate по умолчанию соответствует lexical item на его первом relevant occurrence внутри текущей Chapter.
+
+Один completed `EXTRACTION_ID` нельзя ingest второй раз.
+
+---
+
+## Vocabulary Memo
+
+Vocabulary — canonical Memo и global active lexical knowledge.
+
+Минимальная lexical structure:
+
+```asciidoc
+== Lexical identity
+
+Lemma:: forlorn
+POS:: adjective
+Lexical type:: word
+```
+
+Canonical identity:
+
+```text
+normalized lemma + normalized POS + normalized lexical type
+```
+
+Если active Vocabulary для lexical item уже существует, новая Vocabulary не создаётся.
+
+Vocabulary считается принадлежащей generation первого приобретения через persistent work state, а не через document attributes.
+
+---
+
+## Occurrence Memo
+
+Повторная встреча известного lexical item создаёт Occurrence Memo.
+
+```asciidoc
+== Vocabulary
+
+link:VOCABULARY-UUID.adoc[Description]
+
+== Context
+
+...
+```
+
+Occurrence — самостоятельный sequence node и новый context, но не новая canonical lexical card.
+
+Новый Occurrence не создаётся на deprecated Vocabulary.
+
+---
+
+## Reading sequence
+
+Vocabulary и Occurrence являются равноправными nodes.
+
+```text
+001 Vocabulary
+002 Vocabulary
+003 Occurrence
+004 Vocabulary
+005 Occurrence
+```
+
+Sequence принадлежит Book generation и хранится в `.state/erl/works/`, а не в AsciiDoc attributes.
+
+Каждый node связан с Chapter UUID и Vault document UUID.
+
+---
+
+## Classic Reduce — поддерживаемая возможность
+
+Classic `zt-reduce` можно применять к canonical Vault documents, используемым ERL.
+
+ERL не требует модификации Classic workflow и не требует специального исключения ERL documents.
+
+Сам запуск `zt-reduce` над ERL document не является ошибкой.
+
+Если Classic Reduce deprecated Vocabulary, на которую ещё ссылаются active Occurrence, ERL обнаруживает:
+
+```text
+CLOSURE_REQUIRED
+```
+
+Это означает: host-level Reduce допустим, но ERL dependency closure ещё не завершён.
+
+---
+
+## erl-book-reduce
+
+`erl-book-reduce` — отдельный generation-aware Reduce.
+
+Он может переводить в deprecated не только Memo, но и Note, если документ зарегистрирован как reducible generation member или попал в dependency closure.
+
+При этом durable Chapter Note является исключением: ordinary Book Reduce не закрывает Chapter только из-за принадлежности к work/source.
+
+### Cross-book dependency closure
+
+Vocabulary является global canonical knowledge и принадлежит generation первого приобретения.
+
+Поэтому возможен нормальный сценарий:
+
+```text
+Book A -> Vocabulary X
+Book B -> Occurrence -> X
+Book C -> Occurrence -> X
+Book D -> Occurrence -> X
+```
+
+Reduce Book A требует:
+
+```text
+Vocabulary X -> deprecated
+-> active Occurrences B/C/D потеряют active target
+-> B/C/D входят в dependency closure
+```
+
+Это **ожидаемая feature**, а не ошибка.
+
+Closure вычисляется транзитивно до fixed point и не ограничивается одной книгой.
+
+### Никакого скрытого cascade
+
+Перед mutation:
+
+```bash
+erl-book-reduce --dry-run ...
+```
+
+должен показать:
+
+```text
+affected generations
+affected documents
+role/type
+dependency reason
+```
+
+Если нужны дополнительные generations, они включаются только явно (`--include-dependencies` или эквивалент).
+
+### Transactionality
+
+Reduce выполняется как all-or-rollback operation.
+
+Journal:
+
+```text
+.state/erl/transactions/<TXID>/
+```
+
+Crash оставляет recovery journal. Новая Reduce transaction не запускается до recovery/rollback предыдущей.
+
+---
+
+## Source books и copyright boundary
+
+Source books остаются локальными пользовательскими файлами.
+
+Не публикуются:
+
+```text
+EPUB
+PDF
+MOBI
+AZW/AZW3
+TXT copies of copyrighted books
+```
+
+`books/` должен быть исключён из публичного Git history.
+
+`.state/erl/staging/` может содержать excerpts и также не должен публиковаться по умолчанию.
+
+`works/` хранит metadata/mappings/hashes/UUID relations, а не копии книги.
+
+---
+
+## Skills
+
+Минимальный set:
+
+```text
+erl-book-ingest
+erl-chapter-vocabulary-extract
+erl-vocabulary-ingest
+erl-chapter-vocabulary-ingest
+erl-book-reduce
+erl-check
+```
+
+Optional book-level orchestration:
+
+```text
+erl-book-vocabulary-extract
+erl-book-vocabulary-ingest
 ```
 
 ---
 
-## Структура репозитория
-
-Предполагаемая структура:
+## Главный invariant
 
 ```text
-english-reading-lab/
-├── books/
-│   ├── a-game-of-thrones/
-│   ├── a-clash-of-kings/
-│   └── ...
-│
-├── .scripts/
-├── .scripts/lib/
-├── .state/
-├── skills/
-├── all-todays/
-├── AGENTS.md
-├── README.md
-└── UUID.adoc
+Vault documents
+= knowledge objects
+= canonical host metadata only
 ```
-
-Основные vocabulary notes находятся в общем пространстве Zettelkasten:
 
 ```text
-UUID.adoc
+.state/erl/works/
+= persistent ERL domain relationships/lifecycle
 ```
-
-Книга хранит только собственный исходный материал и book-specific данные.
-
----
-
-## Первая книга
-
-Первым study case проекта является:
 
 ```text
-A Game of Thrones
-George R. R. Martin
+.state/erl/staging/
+= temporary model/extraction output
 ```
 
-Задача первого этапа — построить vocabulary map книги, содержащую прежде всего лексику уровней B2, C1 и C2.
+```text
+Classic zt-reduce
+= supported host feature
+```
 
-Первый study case также используется для разработки и проверки:
+```text
+erl-book-reduce
+= generation-aware transactional feature
+= Memo + reducible Note support
+= global dependency closure
+```
 
-* модели Vocabulary Note;
-* структуры Book Topic;
-* порядка first occurrence;
-* cross-links;
-* semantic links;
-* chapter indexes;
-* Lexi skills;
-* validation scripts.
-
-После стабилизации модели тот же механизм должен применяться к другим книгам без изменения основной архитектуры.
+ERL расширяет workflow Zettelkasten Vault, но не превращает Vault document contract в ERL schema.
 
 ---
 
@@ -546,489 +432,155 @@ George R. R. Martin
 
 ## Description
 
-English Reading Lab is a project for preparing to read English-language books through a personal vocabulary system built on top of Zettelkasten.
+English Reading Lab (ERL) is a separate plugin/domain workflow on top of a Zettelkasten Vault.
 
-The project uses the existing Zettelkasten-CLI scripting engine and treats every book as a separate study case.
+```text
+Zettelkasten Vault = canonical storage/object contracts
+Classic Zettelkasten = host workflow
+English Reading Lab = reading/vocabulary workflow
+```
 
-The central idea is simple:
-
-> extract difficult vocabulary before reading a book, preserve the order in which lexical items first appear, turn them into interconnected notes, and use the resulting sequence as a preparation path.
-
-The project primarily targets:
-
-* B2 vocabulary;
-* C1 vocabulary;
-* C2 vocabulary;
-
-as well as:
-
-* rare words;
-* literary vocabulary;
-* archaic vocabulary;
-* phrasal verbs;
-* idioms;
-* fixed expressions;
-* collocations;
-* book-specific vocabulary.
-
-A lexical item may contain:
-
-* the original surface form;
-* lemma;
-* part of speech;
-* CEFR level;
-* IPA transcription;
-* translation;
-* definition;
-* first-occurrence context;
-* chapter;
-* occurrence order;
-* related vocabulary;
-* synonyms;
-* antonyms;
-* collocations;
-* previous and next links.
-
-The project is built around several principles:
-
-* books remain local files;
-* vocabulary remains plain AsciiDoc;
-* Git provides history;
-* Zettelkasten provides the knowledge model;
-* a book is a topic and vocabulary items are Notes;
-* first-occurrence order must be preserved;
-* automation should remain transparent and reproducible;
-* agents operate on top of scripts and data structures rather than replacing them.
-
-The system is based on:
-
-* Zettelkasten-CLI;
-* AsciiDoc;
-* Git;
-* zsh;
-* OpenClaw;
-* Unix CLI.
+ERL reuses canonical Topic/Note/Memo constructors and does not add ERL-specific AsciiDoc attributes.
 
 ---
 
-## Goal
-
-The main goal of English Reading Lab is to reduce the lexical barrier before reading difficult English literature.
-
-Instead of studying an abstract vocabulary list, the project derives vocabulary directly from a specific book.
-
-The resulting preparation path follows the future reading order:
+## Document model
 
 ```text
-Book
-  ↓
-Chapter
-  ↓
-First occurrence
-  ↓
-Vocabulary Note
-  ↓
-Next Vocabulary Note
+Book        = Topic
+Chapter     = Note
+Vocabulary  = Memo
+Occurrence  = Memo
 ```
 
-Before reading a chapter, the reader can study exactly the vocabulary that will appear in that chapter.
+Vault documents remain ordinary `UUID.adoc` files with host-defined metadata only.
+
+ERL does not create `:erl-*` attributes and does not overload `:key-topic:` as an ERL foreign key.
 
 ---
 
-## Knowledge Model
+## ERL state
 
-The project uses the existing Zettelkasten model.
-
-A book acts as the main Topic:
+The ERL source of truth is:
 
 ```text
-Book Topic
-    │
-    ├── Vocabulary Note
-    ├── Vocabulary Note
-    ├── Vocabulary Note
-    └── ...
-```
-
-### Book
-
-A Book represents one study case.
-
-For example:
-
-```text
-A Game of Thrones
-```
-
-The Book defines:
-
-* the vocabulary source;
-* chapter sequence;
-* first-occurrence order;
-* usage context;
-* its own vocabulary path.
-
----
-
-### Vocabulary Note
-
-A Vocabulary Note is an independent knowledge unit.
-
-One Note represents one lexical item:
-
-```text
-word
-phrasal verb
-idiom
-collocation
-fixed expression
-```
-
-The same Vocabulary Note may be associated with several books.
-
-When an existing lexical item appears in another book, no duplicate Note is required.
-
-Instead, another source relationship is added to the existing Note.
-
-Over time this creates a shared personal lexical knowledge base across multiple books.
-
----
-
-## Books as Study Cases
-
-Source books are stored in a dedicated part of the repository.
-
-Each book receives its own directory:
-
-```text
-books/
-├── a-game-of-thrones/
-├── a-clash-of-kings/
-├── the-hobbit/
-└── ...
-```
-
-Book directories contain source material and data specific to that study case.
-
-Vocabulary Notes are not physically separated by book.
-
-They remain part of the shared Zettelkasten so that one lexical item can participate in several books and several semantic contexts.
-
----
-
-## First-Occurrence Order
-
-One of the central properties of the project is preservation of the order in which vocabulary first appears in a book.
-
-Each book therefore creates its own sequence:
-
-```text
-word 001
-   ↓
-word 002
-   ↓
-word 003
-   ↓
-word 004
-```
-
-Vocabulary Notes may contain links to the previous and next lexical items in that sequence.
-
-This creates a vocabulary path that can be studied before reading the corresponding part of the book.
-
-A single Vocabulary Note may participate in several such paths at the same time.
-
----
-
-## Semantic Links
-
-Vocabulary is also connected semantically.
-
-For example:
-
-```text
-foreboding
-├── premonition
-├── apprehension
-├── ominous
-└── unease
-```
-
-Relationships may include:
-
-* synonyms;
-* antonyms;
-* related words;
-* derived words;
-* collocations;
-* phrasal verbs;
-* semantic groups.
-
-The vocabulary therefore evolves from a linear list into a lexical knowledge graph.
-
----
-
-## Chapters
-
-A chapter is a natural preparation boundary.
-
-Each chapter may have its own vocabulary index:
-
-```text
-Chapter 1
-
-B2: 42
-C1: 18
-C2: 3
-Phrases: 11
-Literary: 8
-```
-
-The intended workflow is:
-
-```text
-Prepare
-   ↓
-Read
-   ↓
-Review
-```
-
-Vocabulary is studied first.
-
-The chapter is read second.
-
-Vocabulary can then enter a review workflow.
-
----
-
-## Processing Architecture
-
-English Reading Lab separates deterministic text processing from language-model reasoning.
-
-Mechanical processing should be handled by scripts:
-
-```text
-Book
-  ↓
-Text extraction
-  ↓
-Tokenization
-  ↓
-Normalization
-  ↓
-Occurrence detection
-  ↓
-First occurrence
-  ↓
-Candidate list
-```
-
-The specialized agent then enriches lexical candidates:
-
-```text
-Candidate
-  ↓
-CEFR estimation
-  ↓
-Part of speech
-  ↓
-IPA
-  ↓
-Translation
-  ↓
-Definition
-  ↓
-Semantic relations
-  ↓
-Vocabulary Note
-```
-
-The generated data is then validated again by deterministic tooling:
-
-```text
-Vocabulary Note
-  ↓
-Metadata validation
-  ↓
-Duplicate validation
-  ↓
-Link validation
-  ↓
-Sequence validation
-  ↓
-Index generation
-```
-
-The overall principle is:
-
-```text
-Scripts
-   ↓
-Agent
-   ↓
-Scripts
-```
-
-The language model handles linguistic interpretation.
-
-Scripts handle structure, ordering, links, validation, and reproducibility.
-
----
-
-## Lexi
-
-English Reading Lab uses a dedicated specialized agent.
-
-Its working name is:
-
-```text
-Lexi
-```
-
-Lexi is not intended to be a general-purpose personal assistant.
-
-Its bounded domain is:
-
-```text
-English Reading
+Vault documents
 +
-Vocabulary Acquisition
-+
-Lexical Knowledge
+.state/erl/works/
 ```
 
-Its responsibilities include:
+```text
+.state/
+└── erl/
+    ├── works/              # persistent domain state
+    ├── staging/            # intermediate extraction data
+    ├── transactions/       # Reduce/recovery journals
+    ├── cache/              # rebuildable
+    └── locks/              # runtime
+```
 
-* processing vocabulary candidates;
-* identifying lemmas;
-* classifying lexical items;
-* estimating difficulty;
-* providing IPA;
-* producing translations;
-* explaining meanings;
-* discovering semantic relationships;
-* creating Vocabulary Notes;
-* linking vocabulary to books;
-* maintaining the lexical graph;
-* validating generated vocabulary data.
+`works/` is persistent and must not be treated as disposable cache.
 
-Lexi operates on top of Zettelkasten-CLI rather than replacing it.
+It stores logical work identity, sources, durable Chapter UUID mappings, Book generations, reading sequences, ingestion receipts, and lifecycle/dependency metadata.
 
 ---
 
-## OpenClaw
+## Work, generation and Chapter identity
 
-Lexi is intended to run as a dedicated OpenClaw agent.
+A logical work has a stable `WORK_ID` stored only in ERL work state.
 
-The agent has its own workspace, instructions, and restricted skill set.
+A Book Topic UUID identifies one semantic processing generation.
 
-Conceptually:
+A Chapter is a durable Note whose UUID can be reused across multiple generations.
 
-```text
-OpenClaw
-    │
-    └── Lexi
-          │
-          ├── vocabulary extraction
-          ├── vocabulary enrichment
-          ├── vocabulary linking
-          ├── vocabulary validation
-          └── Zettelkasten CLI
-```
-
-The agent should only receive capabilities required for its domain.
-
-This keeps its behaviour narrow, predictable, and reproducible.
-
----
-
-## Zettelkasten-CLI
-
-English Reading Lab does not introduce another note-storage engine.
-
-It uses the existing Zettelkasten-CLI as its infrastructure layer.
-
-Zettelkasten-CLI remains responsible for:
-
-* UUIDs;
-* documents;
-* AsciiDoc;
-* links;
-* Topics;
-* Notes;
-* search;
-* indexes;
-* validation;
-* Git workflow.
-
-English Reading Lab adds a specialized lexical domain model on top.
-
-The resulting architecture is:
+Source/chapter resolution is stored outside the Note using:
 
 ```text
-English Reading Lab
-        ↓
-Lexical domain model
-        ↓
-Zettelkasten-CLI
-        ↓
-AsciiDoc + Git + Unix
+WORK_ID × SOURCE_ID × CHAPTER_LOCATOR -> Chapter UUID
 ```
 
 ---
 
-## Repository Structure
+## Incremental extraction
 
-The intended repository structure is:
-
-```text
-english-reading-lab/
-├── books/
-│   ├── a-game-of-thrones/
-│   ├── a-clash-of-kings/
-│   └── ...
-│
-├── .scripts/
-├── .scripts/lib/
-├── .state/
-├── skills/
-├── all-todays/
-├── AGENTS.md
-├── README.md
-└── UUID.adoc
-```
-
-Vocabulary Notes remain in the shared Zettelkasten namespace:
+The default processing unit is one Chapter:
 
 ```text
-UUID.adoc
+active Book Topic UUID × Chapter UUID
 ```
 
-Book directories contain only source material and book-specific data.
+This allows Chapter-by-Chapter cloud-model processing without requiring the whole book to fit into one context window.
+
+Large Chapters may be split into temporary extraction segments.
 
 ---
 
-## First Study Case
+## Vocabulary and Occurrence
 
-The first study case is:
+Vocabulary is a canonical Memo with a deterministic lexical identity block.
+
+Occurrence is another canonical Memo containing one canonical link to the active Vocabulary and a new context.
+
+Vocabulary is global active lexical knowledge; later encounters create Occurrences rather than duplicate Vocabulary cards.
+
+---
+
+## Reading sequence
+
+Vocabulary and Occurrence are equal reading-sequence nodes.
+
+The sequence belongs to a Book generation and is stored in persistent ERL work state rather than document attributes.
+
+---
+
+## Classic Reduce
+
+Classic `zt-reduce` is supported on ERL-used canonical Vault documents.
+
+ERL does not require Classic Zettelkasten to identify or exclude ERL documents.
+
+If a host-level Reduce leaves an active hard dependency pointing to a deprecated target, ERL reports `CLOSURE_REQUIRED`.
+
+---
+
+## erl-book-reduce
+
+`erl-book-reduce` is the generation-aware, dependency-aware Reduce operation.
+
+It may deprecate reducible Memo and Note documents. Durable Chapter Notes are excluded from the ordinary Book-generation mutation set.
+
+Because Vocabulary is global and belongs to its first-acquisition generation, reducing one book may require a cross-book dependency closure involving many later generations.
+
+This is expected behaviour.
+
+The full closure must be shown with a dry run before any cascade, and extra generations require explicit inclusion.
+
+Reduce is transactional and uses recovery journals under `.state/erl/transactions/`.
+
+---
+
+## Source boundary
+
+Copyrighted source books remain local and are not part of the public plugin repository.
+
+Staging may contain source excerpts and should not be published by default.
+
+Persistent work state stores metadata, mappings, hashes, UUID relations and lifecycle data, not full copyrighted texts.
+
+---
+
+## Core invariant
 
 ```text
-A Game of Thrones
-George R. R. Martin
+Vault documents
+= canonical knowledge objects
+
+.state/erl/works/
+= persistent ERL domain state
+
+Classic zt-reduce
+= supported host feature
+
+erl-book-reduce
+= explicit generation-aware feature
 ```
-
-The first stage of the project is to build a vocabulary map focused primarily on B2, C1, and C2 lexical items.
-
-This first study case is also used to design and validate:
-
-* the Vocabulary Note model;
-* the Book Topic model;
-* first-occurrence sequencing;
-* cross-links;
-* semantic links;
-* chapter indexes;
-* Lexi skills;
-* validation scripts.
-
-Once the model becomes stable, the same workflow should be reusable for other books without changing the core architecture.
