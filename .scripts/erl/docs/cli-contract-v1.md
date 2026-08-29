@@ -35,22 +35,22 @@ CLI не source'ит `.scripts/zettelkasten/`.
 
 ```text
 .scripts/erl/
-├── erl-book-ingest
-├── erl-chapter-export
-├── erl-extraction-stage
-├── erl-vocabulary-ingest
-├── erl-chapter-vocabulary-ingest
-├── erl-book-reduce
-├── erl-classic-reduce-reconcile
+├── erl-book-ingest.zsh
+├── erl-chapter-export.zsh
+├── erl-extraction-stage.zsh
+├── erl-vocabulary-ingest.zsh
+├── erl-chapter-vocabulary-ingest.zsh
+├── erl-book-reduce.zsh
+├── erl-classic-reduce-reconcile.zsh
 └── erl-check.zsh
 ```
 
 Дополнительные recovery commands можно выделить после стабилизации transaction contract:
 
 ```text
-erl-transaction-status
-erl-transaction-recover
-erl-transaction-rollback
+erl-transaction-status.zsh
+erl-transaction-recover.zsh
+erl-transaction-rollback.zsh
 ```
 
 Они не являются Lexi skills.
@@ -61,24 +61,24 @@ erl-transaction-rollback
 
 ```text
 erl-book-ingest skill
-    -> erl-book-ingest
+    -> erl-book-ingest.zsh
 
 erl-chapter-vocabulary-extract skill
-    -> erl-chapter-export
+    -> erl-chapter-export.zsh
     -> Lexi/model extraction
-    -> erl-extraction-stage
+    -> erl-extraction-stage.zsh
 
 erl-vocabulary-ingest skill
-    -> erl-vocabulary-ingest
+    -> erl-vocabulary-ingest.zsh
 
 erl-chapter-vocabulary-ingest skill
-    -> erl-chapter-vocabulary-ingest
+    -> erl-chapter-vocabulary-ingest.zsh
 
 erl-book-reduce skill
-    -> erl-book-reduce
+    -> erl-book-reduce.zsh
 
 erl-classic-reduce-reconcile skill
-    -> erl-classic-reduce-reconcile
+    -> erl-classic-reduce-reconcile.zsh
 
 erl-check skill
     -> erl-check.zsh
@@ -98,7 +98,7 @@ ${ERL_HOME}/.scripts/erl/erl-check.zsh
 
 Для agent-facing invocation сначала разрешается `ERL_HOME`, затем проверяются
 repository markers `AGENTS.MD` и `.scripts/erl/docs/requirements.md`. После этого
-каждая команда вызывается только как `${ERL_HOME}/.scripts/erl/<command>`.
+каждая команда вызывается только как `${ERL_HOME}/.scripts/erl/<command>.zsh`.
 PATH lookup не является canonical agent protocol и не используется Lexi.
 
 ## Общие options
@@ -120,7 +120,7 @@ PATH lookup не является canonical agent protocol и не исполь�
 ```
 
 Отсутствие обоих режимов и их одновременное использование являются usage error.
-Read-only commands (`erl-chapter-export`, `erl-check.zsh`) не принимают эти modes.
+Read-only commands (`erl-chapter-export.zsh`, `erl-check.zsh`) не принимают эти modes.
 
 ### `--vault DIR`
 
@@ -274,7 +274,7 @@ CLI process codes остаются стабильными даже при доб
 
 ---
 
-# 8. `erl-book-ingest`
+# 8. `erl-book-ingest.zsh`
 
 Назначение:
 
@@ -291,7 +291,7 @@ durable Chapter Notes
 Пример:
 
 ```bash
-erl-book-ingest \
+erl-book-ingest.zsh \
   --source books/book.epub \
   --title "Example Book" \
   --key-topic "English Reading" \
@@ -303,7 +303,7 @@ erl-book-ingest \
 Для новой edition существующего logical work:
 
 ```bash
-erl-book-ingest \
+erl-book-ingest.zsh \
   --source books/book-second-edition.epub \
   --work-id "$WORK_ID" \
   --policy-file policies/c1-c2-v1.json \
@@ -373,7 +373,7 @@ planned state files
 
 ---
 
-# 9. `erl-chapter-export`
+# 9. `erl-chapter-export.zsh`
 
 Это read-only bridge между Vault/state и Lexi extraction skill.
 
@@ -390,7 +390,7 @@ validated extraction context
 Invocation:
 
 ```bash
-erl-chapter-export \
+erl-chapter-export.zsh \
   --generation "$BOOK_TOPIC_UUID" \
   --chapter "$CHAPTER_UUID" \
   --json
@@ -467,7 +467,7 @@ Response:
 
 ---
 
-# 10. `erl-extraction-stage`
+# 10. `erl-extraction-stage.zsh`
 
 Принимает semantic result от Lexi.
 
@@ -482,7 +482,7 @@ validation
 Invocation:
 
 ```bash
-erl-extraction-stage \
+erl-extraction-stage.zsh \
   --input extraction.json \
   --apply \
   --json
@@ -492,7 +492,7 @@ erl-extraction-stage \
 
 ```bash
 cat extraction.json |
-erl-extraction-stage --input - --dry-run --json
+erl-extraction-stage.zsh --input - --dry-run --json
 ```
 
 Arguments:
@@ -593,7 +593,7 @@ Response:
 
 ---
 
-# 11. `erl-vocabulary-ingest`
+# 11. `erl-vocabulary-ingest.zsh`
 
 Ингестит один уже staged Candidate.
 
@@ -602,7 +602,7 @@ Response:
 Invocation:
 
 ```bash
-erl-vocabulary-ingest \
+erl-vocabulary-ingest.zsh \
   --extraction-id "$EXTRACTION_ID" \
   --candidate 4 \
   --apply \
@@ -669,14 +669,14 @@ Document creation выполняется только через canonical objec
 
 ---
 
-# 12. `erl-chapter-vocabulary-ingest`
+# 12. `erl-chapter-vocabulary-ingest.zsh`
 
 Batch orchestration над staged extraction.
 
 Invocation:
 
 ```bash
-erl-chapter-vocabulary-ingest \
+erl-chapter-vocabulary-ingest.zsh \
   --extraction-id "$EXTRACTION_ID" \
   --apply \
   --json
@@ -757,7 +757,7 @@ Response:
 
 ---
 
-# 13. `erl-book-reduce`
+# 13. `erl-book-reduce.zsh`
 
 Это destructive lifecycle command.
 
@@ -766,7 +766,7 @@ Response:
 Dry-run:
 
 ```bash
-erl-book-reduce \
+erl-book-reduce.zsh \
   --generation "$BOOK_TOPIC_UUID" \
   --dry-run \
   --json
@@ -775,7 +775,7 @@ erl-book-reduce \
 Несколько seeds:
 
 ```bash
-erl-book-reduce \
+erl-book-reduce.zsh \
   --generation "$GEN_A" \
   --generation "$GEN_B" \
   --dry-run \
@@ -895,14 +895,14 @@ Compact committed transaction result остаётся для audit.
 
 ---
 
-# 14. `erl-classic-reduce-reconcile`
+# 14. `erl-classic-reduce-reconcile.zsh`
 
 Команда требует ровно один режим: `--dry-run` или `--apply`. Default mutation отсутствует.
 
 Invocation:
 
 ```bash
-erl-classic-reduce-reconcile \
+erl-classic-reduce-reconcile.zsh \
   --generation "$OLD_BOOK_TOPIC_UUID" \
   --dry-run \
   --json
@@ -911,7 +911,7 @@ erl-classic-reduce-reconcile \
 Apply:
 
 ```bash
-erl-classic-reduce-reconcile \
+erl-classic-reduce-reconcile.zsh \
   --generation "$OLD_BOOK_TOPIC_UUID" \
   --apply \
   --json
@@ -920,7 +920,7 @@ erl-classic-reduce-reconcile \
 Optional successor adoption:
 
 ```bash
-erl-classic-reduce-reconcile \
+erl-classic-reduce-reconcile.zsh \
   --generation "$OLD_BOOK_TOPIC_UUID" \
   --adopt-successor "$NEW_TOPIC_UUID" \
   --apply \
@@ -1033,7 +1033,7 @@ no .state/erl/works mutation
 no transaction commit
 ```
 
-Для `erl-extraction-stage`:
+Для `erl-extraction-stage.zsh`:
 
 ```text
 no staging write
@@ -1127,7 +1127,7 @@ no :erl-* attributes
 no zcreate
 no sourcing .scripts/zettelkasten/
 no WORK_ID stored in Vault metadata
-no direct Chapter deprecation by erl-book-reduce
+no direct Chapter deprecation by erl-book-reduce.zsh
 no active Occurrence -> deprecated Vocabulary creation
 no duplicate completed EXTRACTION_ID ingestion
 no implicit Classic successor adoption
@@ -1159,14 +1159,14 @@ book-level extraction orchestration.
 Book:
 
 ```bash
-erl-book-ingest ... --dry-run --json
-erl-book-ingest ... --apply --json
+erl-book-ingest.zsh ... --dry-run --json
+erl-book-ingest.zsh ... --apply --json
 ```
 
 Chapter extraction:
 
 ```bash
-erl-chapter-export \
+erl-chapter-export.zsh \
   --generation "$GEN" \
   --chapter "$CHAPTER" \
   --json
@@ -1177,7 +1177,7 @@ Lexi performs semantic extraction
 ```
 
 ```bash
-erl-extraction-stage \
+erl-extraction-stage.zsh \
   --input candidates.json \
   --apply \
   --json
@@ -1186,14 +1186,14 @@ erl-extraction-stage \
 Ingestion:
 
 ```bash
-erl-chapter-vocabulary-ingest \
+erl-chapter-vocabulary-ingest.zsh \
   --extraction-id "$EXTRACTION_ID" \
   --dry-run \
   --json
 ```
 
 ```bash
-erl-chapter-vocabulary-ingest \
+erl-chapter-vocabulary-ingest.zsh \
   --extraction-id "$EXTRACTION_ID" \
   --apply \
   --json
@@ -1208,7 +1208,7 @@ erl-check.zsh --generation "$GEN" --json
 Reduce:
 
 ```bash
-erl-book-reduce \
+erl-book-reduce.zsh \
   --generation "$GEN" \
   --dry-run \
   --json
@@ -1217,7 +1217,7 @@ erl-book-reduce \
 а после подтверждения closure:
 
 ```bash
-erl-book-reduce \
+erl-book-reduce.zsh \
   --generation "$GEN" \
   --include-dependencies \
   --plan-fingerprint "$PLAN_FINGERPRINT" \

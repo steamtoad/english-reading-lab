@@ -1,6 +1,10 @@
 #!/bin/zsh
 
-# English Reading Lab read-only consistency checker.
+#------------------------------------------------------------------------------
+# erl-check.zsh
+# Тип: ERL CLI
+# Назначение: выполнить read-only проверку согласованности Vault documents и persistent ERL state
+#------------------------------------------------------------------------------
 
 emulate -L zsh
 setopt pipe_fail no_unset
@@ -89,6 +93,17 @@ add_diag() {
     [[ -n "$value" ]] || continue
     object="$(jq -c --arg k "$key" --arg v "$value" '. + {($k):$v}' <<< "$object")"
   done
+  case "$scope_kind" in
+    work)
+      [[ "$(jq -r '.work_id // empty' <<< "$object")" == "$scope_value" ]] || return 0
+      ;;
+    generation)
+      [[ "$(jq -r '.generation_uuid // empty' <<< "$object")" == "$scope_value" ]] || return 0
+      ;;
+    document)
+      [[ "$(jq -r '.document_uuid // empty' <<< "$object")" == "$scope_value" ]] || return 0
+      ;;
+  esac
   jq -cn --arg severity "$severity" --arg code "$code" --arg message "$message" \
     --argjson extra "$object" '{severity:$severity,code:$code,message:$message} + $extra' >> "$diagnostics_file"
 }
@@ -165,10 +180,13 @@ check_document_common() {
   case "$role" in
     book)
       [[ "$type" == topic ]] || add_diag error ERL-CHECK-002 "Book role requires canonical Topic" document_uuid "$uuid"
-      local key title
+      local key title description doclink expected_title
       key="$(doc_attr "$file" key-topic)"
       title="$(awk 'NR==1{sub(/^= /,"");print;exit}' "$file")"
-      if [[ -z "$key" || "$title" != "$key - ключевая тема" ]]; then
+      description="$(doc_attr "$file" description)"
+      doclink="$(doc_attr "$file" doclink)"
+      expected_title="$key - ключевая тема"
+      if [[ -z "$key" || "$title" != "$expected_title" || "$description" != "$expected_title" || "$doclink" != "link:$uuid.adoc[$expected_title]" ]]; then
         add_diag error ERL-CHECK-021 "Book Topic violates host key-topic presentation contract" document_uuid "$uuid"
       fi
       ;;
@@ -208,8 +226,11 @@ check_document_common() {
         add_diag error ERL-CHECK-004 "Occurrence points to missing Vocabulary" document_uuid "$uuid" target_uuid "$target" generation_uuid "$generation"
         return
       }
+      if ! jq -e --arg target "$target" 'any(.[]; .uuid==$target and .role=="vocabulary")' "$tmp_dir/references.json" >/dev/null 2>&1 || [[ "$(doc_attr "$target_file" type)" != memo ]]; then
+        add_diag error ERL-CHECK-005 "Active Occurrence target is not a recorded Vocabulary Memo" document_uuid "$uuid" target_uuid "$target" generation_uuid "$generation"
+      fi
       if doc_is_deprecated "$target_file" && ! doc_is_deprecated "$file"; then
-        add_diag warning ERL-CHECK-006 "Active Occurrence points to deprecated Vocabulary; closure is required" document_uuid "$uuid" target_uuid "$target" generation_uuid "$generation" suggested_command "erl-book-reduce --generation $generation --dry-run --json"
+        add_diag warning ERL-CHECK-006 "Active Occurrence points to deprecated Vocabulary; closure is required" document_uuid "$uuid" target_uuid "$target" generation_uuid "$generation" suggested_command "erl-book-reduce.zsh --generation $generation --dry-run --json"
       fi
     fi
   fi
@@ -353,6 +374,7 @@ for work_file in "$works_root"/*/work.json(N); do
   retained=("${(@f)$(jq -r '.generation_uuids[]? // .generations[]? | if type=="object" then (.generation_uuid // .book_topic_uuid // empty) else . end' "$work_file" 2>/dev/null)}")
   active_count=0
   active_is_retained=0
+  active_topic=""
   for generation_uuid in "${retained[@]}"; do
     [[ -n "$generation_uuid" ]] || continue
     [[ -n "${generation_ids[$generation_uuid]-}" ]] || add_diag error ERL-CHECK-001 "Work manifest references missing generation state" work_id "$work_id" generation_uuid "$generation_uuid"
@@ -361,9 +383,30 @@ for work_file in "$works_root"/*/work.json(N); do
     topic_file="$(doc_path "$generation_uuid" 2>/dev/null)" || topic_file=""
     if [[ -n "$topic_file" ]] && ! doc_is_deprecated "$topic_file"; then
       (( active_count++ ))
+      active_topic="$generation_uuid"
+    elif [[ -n "$topic_file" ]] && doc_is_deprecated "$topic_file"; then
+      generation_file="${generation_ids[$generation_uuid]-}"
+      generation_status=""
+      [[ -z "$generation_file" ]] || generation_status="$(json_value "$generation_file" '.status')"
+      if [[ "$generation_status" != GENERATION_CLOSED_EXTERNALLY ]]; then
+        add_diag warning ERL-CHECK-023 "Deprecated Book Topic requires Classic Reduce reconciliation" work_id "$work_id" generation_uuid "$generation_uuid"
+      fi
+      key_topic="$(doc_attr "$topic_file" key-topic)"
+      for successor_file in "$vault/notes"/*.adoc(N) "$vault"/*.adoc(N); do
+        successor_uuid="${successor_file:t:r}"
+        [[ "$successor_uuid" == "$generation_uuid" || -n "${generation_ids[$successor_uuid]-}" ]] && continue
+        [[ "$(doc_attr "$successor_file" type)" == topic && "$(doc_attr "$successor_file" key-topic)" == "$key_topic" ]] || continue
+        doc_is_deprecated "$successor_file" && continue
+        if grep -qF -- "link:$generation_uuid.adoc[" "$successor_file" || grep -qF -- "link:$successor_uuid.adoc[" "$topic_file"; then
+          add_diag warning ERL-CHECK-024 "Unregistered Classic successor Topic requires explicit adoption or close-only reconciliation" work_id "$work_id" generation_uuid "$generation_uuid" successor_uuid "$successor_uuid"
+        fi
+      done
     fi
   done
   (( active_count <= 1 )) || add_diag error ERL-CHECK-010 "More than one retained active Book Topic generation exists for WORK_ID" work_id "$work_id" active_generation_count "$active_count"
+  if (( active_count == 1 )) && [[ -z "$active_generation" ]]; then
+    add_diag error ERL-CHECK-023 "Active Book Topic exists without an active-generation pointer" work_id "$work_id" generation_uuid "$active_topic"
+  fi
   if [[ -n "$active_generation" ]]; then
     (( active_is_retained == 1 )) || add_diag error ERL-CHECK-023 "Active-generation pointer is not present in retained generations" work_id "$work_id" generation_uuid "$active_generation"
     [[ -n "${generation_ids[$active_generation]-}" ]] || add_diag error ERL-CHECK-023 "Active-generation pointer references missing generation" work_id "$work_id" generation_uuid "$active_generation"
@@ -488,6 +531,8 @@ elif (( warnings > 0 )); then
     emit_envelope warning CLOSURE_REQUIRED 0 "$data"
   elif jq -e 'select(.code=="ERL-CHECK-018")' "$diagnostics_file" >/dev/null 2>&1; then
     emit_envelope warning PENDING_TRANSACTION 0 "$data"
+  elif jq -e 'select(.code=="ERL-CHECK-023" or .code=="ERL-CHECK-024")' "$diagnostics_file" >/dev/null 2>&1; then
+    emit_envelope warning GENERATION_CLOSED_EXTERNALLY 0 "$data"
   else
     emit_envelope warning VALIDATION_FAILED 0 "$data"
   fi

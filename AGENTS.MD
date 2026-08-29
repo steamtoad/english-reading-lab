@@ -498,7 +498,7 @@ ERL не ограничивает closure одной книгой.
 
 ### User visibility
 
-`erl-book-reduce --dry-run` обязан показать полный closure до mutation:
+`erl-book-reduce.zsh --dry-run` обязан показать полный closure до mutation:
 
 * generations;
 * documents;
@@ -582,6 +582,10 @@ erl-book-vocabulary-ingest
 
 Book-level orchestration не вводит новую semantics; оно использует chapter-level workflow.
 
+Skill/operation identifiers остаются extensionless. Каждый ERL shell executable,
+library и test script обязан иметь filename с расширением `.zsh`; запускать нужно
+canonical `.scripts/erl/<command>.zsh`, не extensionless wrapper.
+
 ---
 
 ## 20. Agent validation checklist
@@ -614,6 +618,7 @@ Book-level orchestration не вводит новую semantics; оно испо
 [ ] Reduce transaction recoverable/rollback-safe
 [ ] source books/copyright excerpts не попадают в public Git
 [ ] shellcheck/asciidoctor/git diff --check выполняются где применимо
+[ ] все ERL shell scripts/libraries имеют расширение .zsh; extensionless copies отсутствуют
 ```
 
 ---

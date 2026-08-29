@@ -1,5 +1,11 @@
 #!/bin/zsh
 
+#------------------------------------------------------------------------------
+# erl-check.zsh
+# Тип: ERL regression test
+# Назначение: проверить diagnostics, scopes и read-only invariants команды erl-check.zsh
+#------------------------------------------------------------------------------
+
 emulate -L zsh
 setopt errexit pipe_fail no_unset
 
@@ -32,8 +38,8 @@ write_topic() {
 :keywords: topic
 :type: topic
 :author: test
-:description: English Reading
-:doclink: link:$generation.adoc[English Reading]
+:description: English Reading - ключевая тема
+:doclink: link:$generation.adoc[English Reading - ключевая тема]
 :docfilename: $generation.adoc
 :key-topic: English Reading
 
@@ -174,8 +180,8 @@ print -r -- "= English Reading second generation - ключевая тема
 :keywords: topic
 :type: topic
 :author: test
-:description: English Reading second generation
-:doclink: link:$generation_two.adoc[English Reading second generation]
+:description: English Reading - ключевая тема
+:doclink: link:$generation_two.adoc[English Reading - ключевая тема]
 :docfilename: $generation_two.adoc
 :key-topic: English Reading
 
@@ -203,6 +209,32 @@ rm -f -- "$fixture/notes/$vocabulary.adoc.bak"
 assert_json 10 '.status=="error" and .code=="VALIDATION_FAILED" and any(.diagnostics[]; .code=="ERL-CHECK-020")'
 sed -i.bak '/:erl-kind:/d' "$fixture/notes/$vocabulary.adoc"
 rm -f -- "$fixture/notes/$vocabulary.adoc.bak"
+
+# Occurrence must target an active Vocabulary Memo, never a Chapter Note.
+cp "$fixture/notes/$occurrence.adoc" "$fixture/notes/$occurrence.adoc.saved"
+sed -i.bak "s/link:$vocabulary.adoc\[Forlorn\]/link:$chapter.adoc[Chapter 1]/" "$fixture/notes/$occurrence.adoc"
+rm -f -- "$fixture/notes/$occurrence.adoc.bak"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-005")'
+mv "$fixture/notes/$occurrence.adoc.saved" "$fixture/notes/$occurrence.adoc"
+
+# Every active Book generation must be the work's active-generation pointer.
+cp "$fixture/.state/erl/works/example/work.json" "$fixture/.state/erl/works/example/work.json.saved"
+jq '.active_generation_uuid=null' "$fixture/.state/erl/works/example/work.json.saved" > "$fixture/.state/erl/works/example/work.json"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-023")'
+mv "$fixture/.state/erl/works/example/work.json.saved" "$fixture/.state/erl/works/example/work.json"
+
+# Book Topic presentation is canonical, not merely type-compatible.
+cp "$fixture/notes/$generation.adoc" "$fixture/notes/$generation.adoc.saved"
+sed -i.bak 's/:description: English Reading - ключевая тема/:description: Wrong/' "$fixture/notes/$generation.adoc"
+rm -f -- "$fixture/notes/$generation.adoc.bak"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-021")'
+mv "$fixture/notes/$generation.adoc.saved" "$fixture/notes/$generation.adoc"
+
+# Scoped validation must not leak diagnostics from unrelated works.
+mkdir -p "$fixture/.state/erl/works/unrelated"
+print -r -- '{broken json' > "$fixture/.state/erl/works/unrelated/work.json"
+assert_json 0 '.status=="ok" and .data.scope.kind=="generation" and .data.counts.errors==0' --generation "$generation"
+rm -rf -- "$fixture/.state/erl/works/unrelated"
 
 write_vocabulary $'\n:deprecated:'
 assert_json 0 '.status=="warning" and .code=="CLOSURE_REQUIRED" and any(.diagnostics[]; .code=="ERL-CHECK-006")'

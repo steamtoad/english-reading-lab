@@ -1,5 +1,11 @@
 #!/usr/bin/env zsh
 
+#------------------------------------------------------------------------------
+# erl-skills-check.zsh
+# Тип: ERL development check
+# Назначение: проверить packaging, contracts, requirement IDs и executable references skills Lexi
+#------------------------------------------------------------------------------
+
 set -eu
 setopt pipe_fail
 
@@ -28,6 +34,23 @@ fail() {
   print -u2 -- "ERROR: $*"
   failures=$((failures + 1))
 }
+
+while IFS= read -r shell_file; do
+  [[ "$shell_file" == *.zsh ]] || fail "ERL shell file lacks mandatory .zsh extension: $shell_file"
+  header_name="$(sed -n '4p' "$shell_file")"
+  [[ "$(sed -n '3p' "$shell_file")" == '#------------------------------------------------------------------------------' ]] || fail "$shell_file: missing opening header separator"
+  [[ "$header_name" == "# ${shell_file:t}" ]] || fail "$shell_file: header does not contain the full filename"
+  [[ "$(sed -n '5p' "$shell_file")" == '# Тип: '* ]] || fail "$shell_file: missing header type"
+  [[ "$(sed -n '6p' "$shell_file")" == '# Назначение: '* ]] || fail "$shell_file: missing header purpose"
+  [[ "$(sed -n '7p' "$shell_file")" == '#------------------------------------------------------------------------------' ]] || fail "$shell_file: missing closing header separator"
+done < <(find "$erl_dir" "$repo_root/tests" -type f -exec awk 'FNR==1 && $0 ~ /^#!(\/bin\/zsh|\/usr\/bin\/env zsh)$/{print FILENAME}' {} +)
+
+for command_name in \
+  erl-book-ingest erl-chapter-export erl-extraction-stage erl-vocabulary-ingest \
+  erl-chapter-vocabulary-ingest erl-book-reduce erl-classic-reduce-reconcile erl-check; do
+  [[ -x "${erl_dir}/${command_name}.zsh" ]] || fail "canonical executable is missing: ${erl_dir}/${command_name}.zsh"
+  [[ ! -e "${erl_dir}/${command_name}" ]] || fail "extensionless executable is forbidden: ${erl_dir}/${command_name}"
+done
 
 [[ -f "$requirements_file" ]] || fail "requirements not found: $requirements_file"
 [[ -f "$source_contract" ]] || fail "source contract not found: $source_contract"

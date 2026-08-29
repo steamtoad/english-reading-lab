@@ -1534,6 +1534,26 @@ ERL-SHELL-003
 Учитывать macOS/Linux там, где это относится к shared host/tooling contracts.
 ```
 
+```text
+ERL-SHELL-004
+Каждый shell script и каждая sourceable shell library, принадлежащие ERL,
+обязаны использовать расширение .zsh в имени файла. Это относится к public CLI,
+internal utilities, development checks, libraries и test scripts ERL.
+
+Skill/operation identifiers сохраняют имена без расширения, но canonical executable
+path всегда имеет форму .scripts/erl/<command>.zsh. Extensionless executable wrappers
+и дублирующие копии ERL scripts запрещены.
+```
+
+```text
+ERL-SHELL-005
+После обязательного shebang каждый ERL Zsh-файл содержит индивидуальный header
+из пяти comment lines: opening separator, полное имя файла, принадлежность в поле
+«Тип», назначение и функция в поле «Назначение», closing separator.
+
+Формат separator: #------------------------------------------------------------------------------
+```
+
 Предпочтительные инструменты:
 
 ```text

@@ -333,7 +333,7 @@ Closure вычисляется транзитивно до fixed point и не �
 Перед mutation:
 
 ```bash
-erl-book-reduce --dry-run ...
+erl-book-reduce.zsh --dry-run ...
 ```
 
 должен показать:
@@ -408,6 +408,10 @@ Optional book-level orchestration:
 erl-book-vocabulary-extract
 erl-book-vocabulary-ingest
 ```
+
+Имена skills и domain operations не содержат расширения. Все реальные ERL
+shell executables и libraries имеют расширение `.zsh`; canonical invocation
+использует `.scripts/erl/<command>.zsh` без extensionless wrappers.
 
 ---
 
