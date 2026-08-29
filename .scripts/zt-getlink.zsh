@@ -15,7 +15,7 @@ source "$script_dir/lib/asciidoc.zsh"
 
 sep=$'\x1f'
 
-zk_cd_notes
+zk_cd_notes || exit 1
 
 selected="$(
   for file in *.adoc; do

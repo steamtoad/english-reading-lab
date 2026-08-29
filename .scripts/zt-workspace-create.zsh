@@ -10,19 +10,19 @@ emulate -L zsh
 
 script_dir="${0:A:h}"
 source "$script_dir/lib/paths.zsh"
-source "$script_dir/lib/workspace.zsh"
+source "$script_dir/zettelkasten/lib/workspace.zsh"
 
 read -r "?Введите название рабочего места: " title
 title="${title#"${title%%[![:space:]]*}"}"
 title="${title%"${title##*[![:space:]]}"}"
 
-fname="$(zk_workspace_filename "$title")" || {
+fname="$(zt_workspace_filename "$title")" || {
   print -ru2 -- "ERROR invalid workspace title"
   exit 1
 }
 
 zk="$(zk_home)"
-workspaces_dir="$(zk_workspaces_dir)"
+workspaces_dir="$(zt_workspaces_dir)"
 workspace_path="$workspaces_dir/$fname"
 
 [[ -d "$zk" ]] || {

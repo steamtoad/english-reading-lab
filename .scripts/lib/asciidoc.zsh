@@ -1,7 +1,9 @@
+#!/bin/zsh
+
 #------------------------------------------------------------------------------
 # asciidoc.zsh
 # Тип: Library
-# Назначение: генерация AsciiDoc-фрагментов
+# Назначение: нейтральные операции над AsciiDoc-документами и ссылками
 #------------------------------------------------------------------------------
 
 zk_link() {
@@ -18,69 +20,96 @@ zk_root_note_link() {
   zk_link "notes/${fname}" "$title"
 }
 
-zk_today_link() {
-  local fname="$1"
-  local title="$2"
-
-  zk_link "../notes/${fname}" "$title"
-}
-
-zk_workspace_link() {
-  local fname="$1"
-  local title="$2"
-
-  zk_link "../notes/${fname}" "$title"
-}
-
-zk_today_entry() {
-  local fname="$1"
-  local title="$2"
-
-  print -r -- "* $(date +"%H.%M") - $(zk_today_link "$fname" "$title")"
-}
-
 zk_attr_line() {
+  emulate -L zsh
+
   local file="$1"
   local attr="$2"
 
+  [[ -f "$file" ]] || return 1
+  [[ -n "$attr" ]] || return 1
+
   awk -v attr="$attr" '
-    function trimmed(line) {
-      sub(/^[[:space:]]+/, "", line)
-      sub(/[[:space:]]+$/, "", line)
-      return line
+    NR == 1 {
+      if ($0 !~ /^= /) exit
+      next
     }
 
-    in_block {
-      line = trimmed($0)
+    /^[[:space:]]*$/ { exit }
 
-      if (block_delim == "```") {
-        if (line ~ /^```/) {
-          in_block = 0
-        }
-      } else if (line == block_delim) {
-        in_block = 0
+    /^:[[:alnum:]_-]+:/ {
+      if (index($0, ":" attr ":") == 1) {
+        print
+        exit
       }
 
       next
     }
 
-    /^```/ {
-      in_block = 1
-      block_delim = "```"
-      next
-    }
-
-    /^(----|\.{4,}|_{4,}|\*{4,}|={4,}|\+{4,}|\/{4,})[[:space:]]*$/ {
-      in_block = 1
-      block_delim = trimmed($0)
-      next
-    }
-
-    index($0, ":" attr ":") == 1 {
-      print
+    {
       exit
     }
   ' "$file"
+}
+
+zk_validate_extra_attrs() {
+  emulate -L zsh
+
+  local attr
+  local rest
+  local name
+  local value
+  local normalized_name
+  local -A seen
+
+  for attr in "$@"; do
+    [[ -n "$attr" ]] || continue
+
+    if [[ "$attr" == *$'\n'* || "$attr" == *$'\r'* ]]; then
+      print -ru2 -- "ERROR extra attribute must be a single line: $attr"
+      return 1
+    fi
+
+    [[ "$attr" == :* ]] || {
+      print -ru2 -- "ERROR invalid AsciiDoc attribute: $attr"
+      return 1
+    }
+
+    rest="${attr#:}"
+    [[ "$rest" == *:* ]] || {
+      print -ru2 -- "ERROR invalid AsciiDoc attribute: $attr"
+      return 1
+    }
+
+    name="${rest%%:*}"
+    value="${rest#*:}"
+
+    [[ -n "$name" && "$name" != *[!A-Za-z0-9_-]* ]] || {
+      print -ru2 -- "ERROR invalid AsciiDoc attribute name: $attr"
+      return 1
+    }
+
+    if [[ -n "$value" && "$value" != ' '* ]]; then
+      print -ru2 -- "ERROR invalid AsciiDoc attribute spacing: $attr"
+      return 1
+    fi
+
+    normalized_name="${name:l}"
+
+    case "$normalized_name" in
+      date|type|keywords|author|description|doclink|docfilename)
+        print -ru2 -- "ERROR reserved object attribute cannot be overridden: :$name:"
+        return 1
+        ;;
+    esac
+
+    if [[ -n "${seen[$normalized_name]-}" ]]; then
+      print -ru2 -- "ERROR duplicate extra attribute: :$name:"
+      return 1
+    fi
+
+    seen[$normalized_name]=1
+  done
 }
 
 zk_attr_value() {
@@ -102,6 +131,7 @@ zk_is_deprecated() {
   zk_has_attr "$1" "deprecated"
 }
 
+# Совместимость со старыми документами. :type: остаётся каноническим источником.
 zk_type_from_keywords() {
   local keywords="$1"
 
@@ -125,57 +155,16 @@ zk_metadata() {
   local title="$2"
   local keywords="$3"
   local type="${4:-$(zk_type_from_keywords "$keywords")}"
+  local description="${5:-$title}"
 
   print -r -- "= $title"
   print -r -- ":date: $(date +"%Y-%m-%d")"
   print -r -- ":keywords: $keywords"
   print -r -- ":type: $type"
   print -r -- ":author: $(whoami)"
-  print -r -- ":description: $title"
-  print -r -- ":doclink: $(zk_link "$fname" "$title")"
+  print -r -- ":description: $description"
+  print -r -- ":doclink: $(zk_link "$fname" "$description")"
   print -r -- ":docfilename: $fname"
-}
-
-zk_keywords_for_type_from_topic() {
-  local keywords="$1"
-  local new_type="$2"
-
-  print -r -- "$keywords" |
-    awk -v new_type="$new_type" '
-      BEGIN {
-        FS = ","
-      }
-
-      {
-        add(new_type)
-
-        for (i = 1; i <= NF; i++) {
-          item = $i
-          gsub(/^[[:space:]]+/, "", item)
-          gsub(/[[:space:]]+$/, "", item)
-
-          if (item == "") continue
-          if (item == "topic") continue
-          if (item == new_type) continue
-
-          add(item)
-        }
-
-        for (i = 1; i <= count; i++) {
-          if (i > 1) printf ", "
-          printf "%s", order[i]
-        }
-
-        printf "\n"
-      }
-
-      function add(item) {
-        if (!(item in seen)) {
-          seen[item] = 1
-          order[++count] = item
-        }
-      }
-    '
 }
 
 zk_file_title() {

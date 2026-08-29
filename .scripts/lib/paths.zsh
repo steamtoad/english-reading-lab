@@ -1,7 +1,9 @@
+#!/bin/zsh
+
 #------------------------------------------------------------------------------
 # paths.zsh
 # Тип: Library
-# Назначение: пути Zettelkasten
+# Назначение: нейтральные пути и storage-примитивы zettelkasten-cli
 #------------------------------------------------------------------------------
 
 zk_home() {
@@ -19,11 +21,11 @@ zk_note_path() {
 }
 
 zk_cd() {
-  cd "$(zk_home)" || exit 1
+  cd "$(zk_home)" || return 1
 }
 
 zk_cd_notes() {
-  cd "$(zk_notes_dir)" || exit 1
+  cd "$(zk_notes_dir)" || return 1
 }
 
 zk_scripts_dir() {
@@ -31,31 +33,9 @@ zk_scripts_dir() {
 }
 
 zk_lib_dir() {
-  print -r -- "$(zk_home)/.scripts/lib"
-}
-
-zk_today_file() {
-  print -r -- "$(zk_home)/all-todays/$(date +"%Y-%m-%d").adoc"
-}
-
-zk_last_diary_file() {
-  print -r -- "$(zk_home)/.last-diary"
+  print -r -- "$(zk_scripts_dir)/lib"
 }
 
 zk_ensure_notes_dir() {
   mkdir -p "$(zk_notes_dir)"
-}
-
-zk_ensure_dirs() {
-  local today_file
-
-  mkdir -p "$(zk_notes_dir)"
-  mkdir -p "$(zk_home)/all-todays"
-
-  today_file="$(zk_today_file)"
-
-  if [[ ! -f "$today_file" ]]; then
-    print -r -- "= Заметки за $(date +"%d-%m-%Y")" > "$today_file"
-    print -r -- "" >> "$today_file"
-  fi
 }

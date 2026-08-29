@@ -1,14 +1,24 @@
+#!/bin/zsh
+
 #------------------------------------------------------------------------------
 # workspace.zsh
-# Тип: Library
-# Назначение: общие операции выбора и именования Workspace
+# Тип: Zettelkasten Library
+# Назначение: Zettelkasten policy для выбора и именования Workspace
 #------------------------------------------------------------------------------
 
-zk_workspaces_dir() {
+zt_workspaces_dir() {
   print -r -- "$(zk_home)/workspaces"
 }
 
-zk_workspace_title() {
+
+zt_workspace_link() {
+  local fname="$1"
+  local title="$2"
+
+  zk_link "../notes/${fname}" "$title"
+}
+
+zt_workspace_title() {
   local file="$1"
   local title
 
@@ -18,7 +28,7 @@ zk_workspace_title() {
   print -r -- "$title"
 }
 
-zk_workspace_filename() {
+zt_workspace_filename() {
   local title="$1"
   local slug
 
@@ -36,11 +46,11 @@ zk_workspace_filename() {
   print -r -- "${slug}.adoc"
 }
 
-zk_require_workspaces() {
+zt_require_workspaces() {
   local workspaces_dir
   local -a files
 
-  workspaces_dir="$(zk_workspaces_dir)"
+  workspaces_dir="$(zt_workspaces_dir)"
 
   [[ -d "$workspaces_dir" ]] || {
     print -ru2 -- "ERROR workspaces not found: $workspaces_dir"
@@ -55,18 +65,19 @@ zk_require_workspaces() {
   }
 }
 
-zk_select_workspace() {
+zt_select_workspace() {
   local prompt="${1:-workspace> }"
+  local sep=$'\x1f'
   local workspaces_dir
   local file
   local title
 
-  workspaces_dir="$(zk_workspaces_dir)"
+  workspaces_dir="$(zt_workspaces_dir)"
 
   for file in "$workspaces_dir"/*.adoc(N); do
     [[ -f "$file" ]] || continue
 
-    title="$(zk_workspace_title "$file")"
+    title="$(zt_workspace_title "$file")"
     print -r -- "${title} - workspaces/${file:t}${sep}${file}"
   done |
     fzf \

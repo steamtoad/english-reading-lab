@@ -3,28 +3,20 @@
 #------------------------------------------------------------------------------
 # zt-scripts-review.zsh
 # Тип: Maintenance
-# Назначение: вывод всех shell-скриптов Zettelkasten для ревизии
+# Назначение: вывод всех shell-скриптов zettelkasten-cli для ревизии
 #------------------------------------------------------------------------------
 
 emulate -L zsh
-setopt null_glob
+setopt extended_glob null_glob
 
-zk="${ZK_HOME:-$HOME/zettelkasten}"
-scripts_dir="$zk/.scripts"
+script_dir="${0:A:h}"
 
-[[ -d "$scripts_dir" ]] || {
-  print -ru2 -- "ERROR .scripts not found: $scripts_dir"
-  exit 1
-}
-
-cd "$scripts_dir" || exit 1
-
-for f in ./*.zsh ./lib/*.zsh; do
+for f in "$script_dir"/**/*.zsh(N); do
   [[ -f "$f" ]] || continue
 
   print -r -- ""
   print -r -- "=============================================================================="
-  print -r -- "FILE: ${f#./}"
+  print -r -- "FILE: ${f#$script_dir/}"
   print -r -- "=============================================================================="
   cat "$f"
 done

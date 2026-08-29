@@ -17,7 +17,7 @@ read -r "?Введите ключевое слово для поиска: " key
 
 [[ -z "$key" ]] && exit 1
 
-zk_cd
+zk_cd || exit 1
 
 print -r -- "= Листинг заметок по ключевому слову $key от $(date +"%d-%m-%Y")"
 print -r -- ":date: $(date +"%Y-%m-%d")"
@@ -28,7 +28,7 @@ print -r -- ""
 
 for file in notes/*.adoc; do
   zk_is_deprecated "$file" && continue
-  grep -qi -- "$key" "$file" || continue
+  grep -qiF -- "$key" "$file" || continue
 
   cat "$file"
   print -r -- ""

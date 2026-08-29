@@ -15,6 +15,8 @@ script_dir="${0:A:h}"
 source "$script_dir/lib/paths.zsh"
 source "$script_dir/lib/uuid.zsh"
 source "$script_dir/lib/asciidoc.zsh"
+source "$script_dir/objects/topic-create.zsh"
+source "$script_dir/zettelkasten/lib/today.zsh"
 
 sep=$'\x1f'
 
@@ -204,14 +206,9 @@ create_clean_topic() {
   local dst="$1"
   local new_fname="$2"
   local title="$3"
-  local key_topic_line="$4"
+  local key_topic="$4"
 
-  {
-    zk_metadata "$new_fname" "$title" "topic" "topic"
-    print -r -- "$key_topic_line"
-    print -r -- ""
-    print -r -- ""
-  } > "$dst"
+  zk_topic_write "$dst" "$new_fname" "$title" "$key_topic" "topic" "$title"
 }
 
 validate_topic_metadata() {
@@ -321,7 +318,7 @@ confirm_reduce() {
 }
 
 zk_ensure_notes_dir
-zk_cd_notes
+zk_cd_notes || exit 1
 
 selected="$(select_topic_file)"
 [[ -n "$selected" ]] || exit 0
@@ -377,7 +374,8 @@ done
 print_reduce_plan "$old_topic" "$new_fname" "$mode" "$key_topic"
 confirm_reduce || exit 0
 
-zk_ensure_dirs
+zk_ensure_notes_dir
+zt_ensure_today || exit 1
 
 case "$mode" in
   "Full Copy")
@@ -394,7 +392,7 @@ case "$mode" in
       "$new_fname" \
       "$new_fname" \
       "$canonical_title" \
-      "$key_topic_line" || exit 1
+      "$key_topic" || exit 1
     ;;
 
   *)
@@ -409,7 +407,7 @@ old_description="$(zk_link_description "$old_topic")"
 new_link="$(zk_link "$new_fname" "$new_description")"
 old_link="$(zk_link "$old_topic" "$old_description")"
 
-zk_today_entry "$new_fname" "$new_description" >> "$(zk_today_file)"
+zt_today_append "$new_fname" "$new_description" || exit 1
 
 zk_append_related_link "$old_topic" "== Связанные Topic" "Развитие" "$new_link"
 zk_append_related_link "$new_fname" "== Связанные Topic" "Основано на" "$old_link"

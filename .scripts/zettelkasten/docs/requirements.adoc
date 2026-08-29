@@ -1,0 +1,65 @@
+= Требования к плагину Zettelkasten
+:revdate: 2026-08-29
+:revnumber: 2
+:toc:
+
+== Назначение
+
+Документ задаёт требования только к реализации под `.scripts/zettelkasten/`.
+Плагин добавляет Zettelkasten policy поверх нейтральных API движка. Требования
+движка находятся в `../../docs/requirements.adoc`.
+
+== Граница плагина
+
+* `ZP-ARCH-001 [INVARIANT]` — плагин зависит от `../../lib/`, `../../objects/` и собственных `lib/`.
+* `ZP-ARCH-002 [INVARIANT]` — движок не зависит от плагина.
+* `ZP-ARCH-003 [IMPLEMENTED]` — канонические workflow: Note, Memo, Topic, Todo и Diary.
+* `ZP-ARCH-004 [INVARIANT]` — top-level команды, не делегирующие файлу под `.scripts/zettelkasten/`, не являются функциями этого плагина.
+* `ZP-ARCH-005 [PROCESS]` — новая функция включается в документацию плагина только после появления реализации в plugin directory и проверки.
+
+== Интерактивные workflow
+
+* `ZP-CREATE-001 [IMPLEMENTED]` — workflow спрашивает непустое название и создаёт объект через соответствующий constructor движка.
+* `ZP-CREATE-002 [IMPLEMENTED]` — созданный документ регистрируется в дневном `all-todays`.
+* `ZP-CREATE-003 [IMPLEMENTED]` — после успешного создания документ открывается в Vim и готовая ссылка печатается в stdout.
+* `ZP-CREATE-004 [INVARIANT]` — отмена обязательного выбора не создаёт непривязанный документ.
+* `ZP-CREATE-005 [INVARIANT]` — ошибка constructor или регистрации завершает workflow ненулевым кодом.
+
+== Note и Memo bindings
+
+* `ZP-BIND-001 [IMPLEMENTED]` — Memo может быть привязано к активной Topic через `fzf`.
+* `ZP-BIND-002 [IMPLEMENTED]` — Note может быть привязана к активному Memo через `fzf`.
+* `ZP-BIND-003 [IMPLEMENTED]` — Memo наследует обязательный `key-topic` выбранной Topic и нормализованные keywords; Note наследует `key-topic`, когда он присутствует у выбранного Memo.
+* `ZP-BIND-004 [IMPLEMENTED]` — привязка записывается двусторонними AsciiDoc-ссылками.
+* `ZP-BIND-005 [INVARIANT]` — выбор ограничен активными документами с соответствующим каноническим `type`; Topic без header `:key-topic:` не предлагается для привязки Memo.
+* `ZP-BIND-006 [IMPLEMENTED]` — отсутствие `fzf` диагностируется до создания Note или Memo.
+
+== Topic и Todo
+
+* `ZP-TOPIC-001 [IMPLEMENTED]` — Topic получает title `<key> - ключевая тема`, description и непустой `key-topic`.
+* `ZP-TODO-001 [IMPLEMENTED]` — Todo получает датированный title и начальную строку задачи согласно constructor contract.
+
+== Diary
+
+* `ZP-DIARY-001 [IMPLEMENTED]` — Diary создаётся через neutral Diary constructor.
+* `ZP-DIARY-002 [IMPLEMENTED]` — `.last-diary` хранит basename последней записи.
+* `ZP-DIARY-003 [IMPLEMENTED]` — новая и предыдущая записи соединяются двунаправленно.
+* `ZP-DIARY-004 [INVARIANT]` — значение `.last-diary` с разделителем пути отклоняется.
+* `ZP-DIARY-005 [INVARIANT]` — state обновляется только после успешного создания и связывания.
+
+== all-todays
+
+* `ZP-TODAY-001 [IMPLEMENTED]` — плагин создаёт `all-todays/YYYY-MM-DD.adoc` при необходимости.
+* `ZP-TODAY-002 [IMPLEMENTED]` — запись содержит время и ссылку `../notes/UUID.adoc`.
+* `ZP-TODAY-003 [INVARIANT]` — target должен существовать до регистрации.
+
+== Workspace policy library
+
+* `ZP-WORKSPACE-001 [IMPLEMENTED]` — plugin library вычисляет каталог, title, безопасное filename и ссылки Workspace.
+* `ZP-WORKSPACE-002 [INVARIANT]` — библиотека не владеет top-level Workspace workflow; соответствующие команды пока остаются host CLI.
+
+== Совместимость
+
+* `ZP-COMPAT-001 [IMPLEMENTED]` — top-level `zt-note.zsh`, `zt-memo.zsh`, `zt-keytopic.zsh`, `zt-todo.zsh`, `zt-diary.zsh` остаются тонкими `exec`-обёртками.
+* `ZP-COMPAT-002 [INVARIANT]` — существующие aliases продолжают работать через compatibility entrypoints.
+* `ZP-COMPAT-003 [INVARIANT]` — формат существующих AsciiDoc-документов и ссылок не меняется при подключении плагина.

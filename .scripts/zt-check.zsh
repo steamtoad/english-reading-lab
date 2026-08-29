@@ -217,8 +217,18 @@ if [[ -n "$metadata_report" ]] && (( ${#note_files[@]} > 0 )) && ! awk '
     reset_file()
     current_file = FILENAME
     seen_file = 1
+    in_header = 1
     if ($0 ~ /^= /) title = 1
     if ($0 ~ /^= [^[:space:]]/) title_spacing_valid = 1
+  }
+
+  FNR > 1 && in_header && /^[[:space:]]*$/ {
+    in_header = 0
+    next
+  }
+
+  !in_header {
+    next
   }
 
   /^:[[:alnum:]_-]+:/ {
@@ -233,6 +243,11 @@ if [[ -n "$metadata_report" ]] && (( ${#note_files[@]} > 0 )) && ! awk '
 
     sub(/^[[:space:]]*/, "", value)
     if (!(name in attr)) attr[name] = value
+    next
+  }
+
+  FNR > 1 && in_header {
+    in_header = 0
   }
 
   END { finish_file() }

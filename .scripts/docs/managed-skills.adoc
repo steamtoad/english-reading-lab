@@ -37,6 +37,7 @@ checkout Zettelkasten и внешним OpenClaw skill state. Он не копи
 |zettelkasten-note |operational |zt-note.zsh |4a3ed218-a0c6-11f1-8a62-9300ba1e2f41.adoc |84e562b0cf41a12af659e8498090af9a8dd8de9e6ae8934a0e74713c36e64d25
 |zettelkasten-publish-cli-version |operational |zt-develop-publish-version.zsh |4a4140b6-a0c6-11f1-8f48-0bc5de6e398f.adoc |9bcb6fc10503a8f498ea0d82d6698586e3e7cb4c975f6083d9b9d95d30f03fc9
 |zettelkasten-read |operational |zt-read.zsh |8406dcc8-a0c8-11f1-ac90-7b35407f036c.adoc |a0a62baa4cd1bb898f34c63cfec34139343b9c085d28f5f4717dbcfab1c77106
+|zettelkasten-red-trigger-chain |meta |- |- |713c42322956d6a7b5c2211b12dd6dc5b8031f46920b0d0ae79536f2b783996e
 |zettelkasten-reduce |operational |zt-reduce.zsh |16a8604e-673d-11f1-bdee-bf66a33fc06b.adoc |38119a351c0bb050e267ee7e0b228c6e4b1522a52edcfa0e614006e5f08a26e4
 |zettelkasten-refine |operational |zt-refine.zsh |33bd2ad2-9fcf-11f1-b52c-7b91862f4ed4.adoc |4e49c7830f55df776b6bf6530c863b6bbac24eaf8d8c16f7293eafafb9e3f3ca
 |zettelkasten-requirements |meta |- |- |c283132848bdb48b4f624a242fa7a15357534931971024c20e15824b7692dcdb

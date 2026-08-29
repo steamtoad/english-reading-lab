@@ -14,6 +14,8 @@ script_dir="${0:A:h}"
 source "$script_dir/lib/paths.zsh"
 source "$script_dir/lib/uuid.zsh"
 source "$script_dir/lib/asciidoc.zsh"
+source "$script_dir/objects/topic-create.zsh"
+source "$script_dir/zettelkasten/lib/today.zsh"
 
 sep=$'\x1f'
 
@@ -252,12 +254,7 @@ create_topic() {
   local key="$3"
   local title="${key} - ключевая тема"
 
-  {
-    zk_metadata "$file" "$title" "topic" "topic"
-    print -r -- ":key-topic: $key"
-    print -r -- ""
-    print -r -- ""
-  } > "$output_file"
+  zk_topic_write "$output_file" "$file" "$title" "$key" "topic" "$title"
 }
 
 print_plan() {
@@ -308,7 +305,7 @@ rollback_apply() {
 }
 
 zk_ensure_notes_dir
-zk_cd_notes
+zk_cd_notes || exit 1
 
 selected="$(select_topic_file)"
 [[ -n "$selected" ]] || exit 0
@@ -465,7 +462,7 @@ if [[ "$archive_source" == "Да" ]]; then
   done
 fi
 
-today_file="$(zk_today_file)"
+today_file="$(zt_today_file)"
 mkdir -p "$stage_dir/all-todays" || exit 1
 
 if [[ -f "$today_file" ]]; then
@@ -475,7 +472,7 @@ else
   print -r -- "" >> "$stage_dir/all-todays/${today_file:t}"
 fi
 
-zk_today_entry "$new_fname" "$new_title" >> "$stage_dir/all-todays/${today_file:t}"
+zt_today_entry "$new_fname" "$new_title" >> "$stage_dir/all-todays/${today_file:t}"
 
 for file in "$source_topic" "${selected_files[@]}" "$new_fname"; do
   validate_header "$stage_dir/$file" || {

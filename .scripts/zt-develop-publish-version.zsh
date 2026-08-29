@@ -8,8 +8,11 @@
 
 emulate -L zsh
 
-src="${ZK_DEV_HOME:-/Users/steamtoad/zettelkasten}"
-dst="${ZK_PUBLISH_HOME:-/Users/steamtoad/dev/zettelkasten-cli}"
+script_dir="${0:A:h}"
+source "$script_dir/lib/paths.zsh"
+
+src="${ZK_DEV_HOME:-$(zk_home)}"
+dst="${ZK_PUBLISH_HOME:-$HOME/dev/zettelkasten-cli}"
 
 apply=0
 
@@ -56,7 +59,9 @@ print -r -- ""
 
 if (( apply == 0 )); then
   print -r -- "DRY RUN"
-  rsync -av --dry-run --exclude='.DS_Store' "$src/.scripts/" "$dst/.scripts/" ||
+  rsync -av --dry-run --delete --delete-excluded \
+    --exclude='.DS_Store' --exclude='__MACOSX/' \
+    "$src/.scripts/" "$dst/.scripts/" ||
     fail "dry-run failed for .scripts"
   rsync -av --dry-run "$src/LICENSE" "$src/README.MD" "$src/.gitignore" "$dst/" ||
     fail "dry-run failed for root artifacts"
@@ -67,7 +72,9 @@ fi
 
 mkdir -p "$dst/.scripts" || fail "cannot create destination .scripts: $dst/.scripts"
 
-rsync -av --exclude='.DS_Store' "$src/.scripts/" "$dst/.scripts/" ||
+rsync -av --delete --delete-excluded \
+  --exclude='.DS_Store' --exclude='__MACOSX/' \
+  "$src/.scripts/" "$dst/.scripts/" ||
   fail "copy failed for .scripts"
 rsync -av "$src/LICENSE" "$src/README.MD" "$src/.gitignore" "$dst/" ||
   fail "copy failed for root artifacts"

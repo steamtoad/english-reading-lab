@@ -1,12 +1,16 @@
 = Требования и инварианты zettelkasten-cli
-:revdate: 2026-08-26
-:revnumber: 9
+:revdate: 2026-08-29
+:revnumber: 13
 :toc:
 
 == Назначение документа
 
 Документ является актуальной технической спецификацией проекта `zettelkasten-cli`.
 Он фиксирует обязательные инварианты, реализованное поведение, правила разработки и целевую архитектуру.
+Он сохраняет требования host CLI и основного движка с историческими стабильными
+ID. Дополнительный контракт Zettelkasten plugin находится в
+`.scripts/zettelkasten/docs/requirements.adoc` и использует отдельный namespace
+`ZP-*`.
 
 Статусы требований:
 
@@ -25,6 +29,7 @@
 * `SPEC-004 [INVARIANT]` — новая редакция требований не удаляет действующие требования к реализованным функциям без явного решения, миграции или перевода функции в deprecated.
 * `SPEC-005 [PROCESS]` — будущие обязательные свойства получают статус `ROADMAP` до появления подтверждённой реализации.
 * `SPEC-006 [INVARIANT]` — требования и Feature List не должны утверждать наличие отсутствующей реализации.
+* `SPEC-007 [INVARIANT]` — этот файл сохраняет полную непрерывную спецификацию host CLI и прежние стабильные ID; Zettelkasten plugin дополняется отдельными `ZP-*` требованиями в `.scripts/zettelkasten/docs/requirements.adoc`, не переиспользуя существующие ID.
 
 == UUID
 
@@ -45,6 +50,7 @@
 * `DOC-006 [IMPLEMENTED]` — `:key-topic:` является действующим ключом тематической группировки и связи документов; он также сохраняет обратную совместимость.
 * `DOC-007 [INVARIANT]` — `:type:` является каноническим источником типа документа. Вывод типа из `:keywords:` допустим только как временный механизм совместимости и миграции.
 * `DOC-008 [PROCESS]` — значение `:type:` должно присутствовать в `:keywords:`; `zt-check` может сообщать об отсутствии как о рекомендации до введения строгой проверки.
+* `DOC-009 [IMPLEMENTED]` — первая пустая строка после document title или атрибутов завершает AsciiDoc header; атрибутоподобные строки после неё являются body и не влияют на metadata semantics.
 
 == Физическое пространство документов
 
@@ -122,6 +128,13 @@
 * `ARCH-010 [ROADMAP]` — генерация UUID, метаданных, `doclink`, `docfilename` и регистрация в `all-todays` выполняются через `zcreate`.
 * `ARCH-011 [INVARIANT]` — до реализации `zcreate --no-edit` интерактивные `zt-note`, `zt-memo` и другие creation scripts не считаются unattended deterministic agent primitives; агент использует их поведение как механический reference и запускает их только в подходящем интерактивном контексте.
 * `ARCH-012 [ROADMAP]` — после реализации `zcreate --no-edit` managed skills используют `zcreate` как детерминированную границу между семантическими решениями агента и файловой моделью Zettelkasten.
+* `ARCH-013 [IMPLEMENTED]` — `.scripts/objects/` содержит нейтральные constructors постоянных типов Note, Memo, Todo, Diary и Topic; constructors гарантируют UUID-файл, обязательные метаданные, `:type:` и специфический object contract, но не выполняют интерактивный workflow.
+* `ARCH-014 [IMPLEMENTED]` — `.scripts/zettelkasten/` и `.scripts/zettelkasten/lib/` содержат Zettelkasten-specific policy: интерактивный ввод, bindings, `all-todays`, Diary state и другие workflow-правила.
+* `ARCH-015 [INVARIANT]` — `.scripts/lib/` содержит только нейтральные примитивы, доступные object layer, Zettelkasten layer и будущим plugin layers.
+* `ARCH-016 [INVARIANT]` — разрешённые зависимости: `objects -> lib`, `zettelkasten -> objects`, `zettelkasten -> lib`, `zettelkasten -> zettelkasten/lib`; зависимости `lib -> zettelkasten` и `objects -> zettelkasten` запрещены.
+* `ARCH-017 [IMPLEMENTED]` — top-level `zt-note.zsh`, `zt-memo.zsh`, `zt-keytopic.zsh`, `zt-todo.zsh` и `zt-diary.zsh` сохранены как compatibility entrypoints и делегируют каноническим workflow в `.scripts/zettelkasten/`.
+* `ARCH-018 [PROCESS]` — Zettelkasten-specific helper получает namespace `zt_*`; нейтральная инфраструктура и object constructors используют `zk_*`.
+* `ARCH-019 [IMPLEMENTED]` — в переходной архитектуре host CLI может напрямую использовать `.scripts/zettelkasten/lib/`: Continue, Reduce и Refine используют `today.zsh`, Continue использует `bindings.zsh`, Workspace-команды используют `workspace.zsh`; эта зависимость должна быть удалена или перенесена вместе с соответствующим workflow при дальнейшей миграции.
 
 == Инструкции и навыки агентов
 
@@ -182,7 +195,7 @@
 * `BIND-001 [IMPLEMENTED]` — `zt-memo` копирует в новую Memo точную строку `:key-topic:` выбранной Topic.
 * `BIND-002 [IMPLEMENTED]` — `zt-memo` использует `:description:` Topic только для отображения в селекторе и тексте ссылки, а не для вычисления `:key-topic:`.
 * `BIND-003 [INVARIANT]` — команды связывания не выводят и не изменяют тематический ключ на основании заголовка или `:description:`.
-* `BIND-004 [ROADMAP]` — команда связывания отклоняет выбранную Topic без непустого `:key-topic:` до первой записи.
+* `BIND-004 [IMPLEMENTED]` — селектор не предлагает Topic без непустого header `:key-topic:`, а `zt-memo` повторно проверяет выбранную Topic и отклоняет её до создания Memo.
 * `BIND-005 [ROADMAP]` — при выборе Topic с противоречивыми каноническими метаданными команда предупреждает пользователя и требует явного решения до создания документа или связи.
 * `BIND-006 [ROADMAP]` — после создания Memo проверяется точное совпадение её `:key-topic:` с выбранной Topic и взаимность созданной связи.
 
@@ -245,9 +258,9 @@
 
 == Библиотеки и зависимости
 
-* `LIB-001 [PROCESS]` — повторяющийся код переносится в `.scripts/lib/`, когда это уменьшает реальное дублирование.
-* `LIB-002 [IMPLEMENTED]` — существующие библиотеки: `paths.zsh`, `uuid.zsh`, `asciidoc.zsh`.
-* `LIB-003 [ROADMAP]` — библиотеки `templates.zsh`, `index.zsh` и `git.zsh` добавляются только при появлении соответствующего общего поведения.
+* `LIB-001 [PROCESS]` — повторяющийся нейтральный код переносится в `.scripts/lib/`; Zettelkasten-specific повторяющийся код — в `.scripts/zettelkasten/lib/`, когда это уменьшает реальное дублирование.
+* `LIB-002 [IMPLEMENTED]` — нейтральные библиотеки `.scripts/lib/`: `paths.zsh`, `uuid.zsh`, `asciidoc.zsh`; Zettelkasten-specific библиотеки находятся в `.scripts/zettelkasten/lib/`.
+* `LIB-003 [ROADMAP]` — нейтральные библиотеки `templates.zsh`, `index.zsh` и `git.zsh` добавляются только при появлении соответствующего общего поведения.
 * `LIB-004 [PROCESS]` — при анализе нескольких скриптов проверяется дублирование и возможность использования существующих библиотек.
 * `LIB-005 [PROCESS]` — все команды используют `ZK_HOME` и библиотеку путей вместо прямого `$HOME/zettelkasten`.
 * `LIB-006 [PROCESS]` — команда проверяет необходимые внешние зависимости и сообщает понятную ошибку при их отсутствии.
@@ -290,6 +303,8 @@
 * `PUB-022 [ROADMAP]` — временный скрипт публикации заменяется полноценным release/workflow-слоем.
 * `PUB-023 [IMPLEMENTED]` — ошибка `mkdir` или любого вызова `rsync` завершает публикацию с ненулевым кодом и сообщением в stderr.
 * `PUB-024 [INVARIANT]` — персональные agent-integration файлы `AGENTS.md`, `.hermes.md`, `.agent-skills/` и managed OpenClaw skills не входят в публичный `zettelkasten-cli`; публичная agent-инструкция при необходимости проектируется отдельно как sanitized generic artifact.
+* `PUB-025 [IMPLEMENTED]` — по явному решению о публикации exact mirror destination `.scripts/` синхронизируется через `rsync --delete --delete-excluded`; dry-run показывает удаления, а реальное удаление возможно только с `--apply` и только внутри destination `.scripts/`.
+* `PUB-026 [IMPLEMENTED]` — `.DS_Store` и каталоги `__MACOSX/` исключаются из dry-run и реального зеркала `.scripts/`, а `--delete-excluded` удаляет ранее опубликованные экземпляры из destination.
 
 == Стиль CLI-скриптов
 
@@ -325,6 +340,7 @@
 * `CHECK-019 [ROADMAP]` — интеграционные тесты покрывают следующую редакцию Topic через Reduce, выделение новой тематической линии, повторный запуск и создание Memo после каждой операции.
 * `CHECK-020 [ROADMAP]` — интеграционный тест подтверждает, что Memo получает тематический ключ из `:key-topic:` выбранной Topic, а не из её заголовка или `:description:`.
 * `CHECK-021 [ROADMAP]` — интеграционный тест подтверждает, что ошибка разбора заголовка не приводит к добавлению `:deprecated:` в тело или конец документа.
+* `CHECK-022 [IMPLEMENTED]` — metadata scanner прекращает разбор header на первой пустой строке после title и не принимает атрибутоподобные строки body за обязательные metadata или `:deprecated:`.
 
 == Workflow
 

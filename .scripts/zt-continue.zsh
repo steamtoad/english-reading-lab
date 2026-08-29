@@ -12,27 +12,10 @@ setopt null_glob
 script_dir="${0:A:h}"
 
 source "$script_dir/lib/paths.zsh"
-source "$script_dir/lib/uuid.zsh"
 source "$script_dir/lib/asciidoc.zsh"
-
-sep=$'\x1f'
-
-select_memo_file() {
-  local file
-  local description
-
-  for file in *.adoc; do
-    zk_is_deprecated "$file" && continue
-    [[ "$(zk_attr_value "$file" "type")" == "memo" ]] || continue
-
-    description="$(zk_link_description "$file")"
-    print -r -- "${file} - ${description}${sep}${file}"
-  done |
-    fzf \
-      --delimiter="$sep" \
-      --with-nth=1 \
-      --prompt='continue memo> '
-}
+source "$script_dir/objects/memo-create.zsh"
+source "$script_dir/zettelkasten/lib/today.zsh"
+source "$script_dir/zettelkasten/lib/bindings.zsh"
 
 extract_memo_chain_link() {
   local file="$1"
@@ -48,31 +31,35 @@ extract_memo_chain_link() {
   ' "$file"
 }
 
-zk_ensure_dirs
-zk_cd_notes
+zk_ensure_notes_dir || exit 1
+zt_ensure_today || exit 1
+zk_cd_notes || exit 1
+zt_require_fzf || exit 1
 
-selected="$(select_memo_file)"
+selected="$(zt_select_file_by_type "memo" "continue memo> ")" || exit 0
 [[ -n "$selected" ]] || exit 0
 
-selected="${selected%%$'\n'*}"
-source_file="${selected##*$sep}"
+source_file="$(zt_selected_filename "$selected")"
 
 existing_next="$(extract_memo_chain_link "$source_file" "Следующее memo")"
 
 read -r "?Введите название продолжения memo: " key
 [[ -n "$key" ]] || exit 1
 
-source_description="$(zk_link_description "$source_file")"
 source_keywords="$(zk_attr_value "$source_file" "keywords")"
 source_key_topic_line="$(zk_attr_line "$source_file" "key-topic")"
 
-new_fname="$(zk_new_adoc_filename)" || exit 1
 title="Memo - $key от $(date +"%d-%m-%Y")"
-
 new_description="$title"
 
-new_link="$(zk_link "$new_fname" "$new_description")"
 previous_link="$(zk_link "$source_file" "Предыдущее memo")"
+
+typeset -a extra_attrs
+extra_attrs=()
+[[ -n "$source_key_topic_line" ]] && extra_attrs+=("$source_key_topic_line")
+
+new_fname="$(zk_memo_create "$title" "$source_keywords" "$new_description" "${extra_attrs[@]}")" || exit 1
+new_link="$(zk_link "$new_fname" "$new_description")"
 
 if [[ -n "$existing_next" ]]; then
   forward_link="$(zk_link "$new_fname" "Ветка: ${new_description}")"
@@ -80,19 +67,11 @@ else
   forward_link="$(zk_link "$new_fname" "Следующее memo")"
 fi
 
-zk_today_entry "$new_fname" "$title" >> "$(zk_today_file)"
+zt_today_append "$new_fname" "$title" || exit 1
 
 {
-  zk_metadata "$new_fname" "$title" "$source_keywords" "memo"
-
-  if [[ -n "$source_key_topic_line" ]]; then
-    print -r -- "$source_key_topic_line"
-  fi
-
-  print -r -- ""
-  print -r -- ""
   print -r -- "$previous_link"
-} > "$new_fname"
+} >> "$new_fname" || exit 1
 
 print -r -- "| $forward_link" >> "$source_file"
 

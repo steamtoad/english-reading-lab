@@ -17,7 +17,7 @@ read -r "?Введите ключевое слово для поиска: " key
 
 [[ -z "$key" ]] && exit 1
 
-zk_cd
+zk_cd || exit 1
 
 print -r -- ""
 print -r -- ""
@@ -32,7 +32,7 @@ print -r -- ""
 
 for file in notes/*.adoc; do
   zk_is_deprecated "$file" && continue
-  grep -qi -- "$key" "$file" || continue
+  grep -qiF -- "$key" "$file" || continue
 
   fname="${file:t}"
   description="$(zk_attr_value "$file" "description")"

@@ -1,12 +1,15 @@
 = Feature List zettelkasten-cli
-:revdate: 2026-08-26
-:revnumber: 9
+:revdate: 2026-08-29
+:revnumber: 13
 :toc:
 
 == Назначение
 
 Документ описывает подтверждённую текущую функциональность `zettelkasten-cli`.
 В список не включаются планы и предполагаемое поведение, которое не подтверждено реализацией или проверкой.
+Подтверждённые возможности Zettelkasten plugin дополнительно описаны в
+`.scripts/zettelkasten/docs/features.adoc`; этот файл сохраняет полный host CLI
+feature list и прежние стабильные ID.
 
 == Создание заметок
 
@@ -52,6 +55,7 @@
 * `META-011` — наследование ключевых слов Memo при создании связанной Note.
 * `META-012` — исключение тега непосредственного исходного типа: `topic` при Topic→Memo и `memo` при Memo→Note.
 * `META-013` — получение описания ссылки через последовательный fallback: `:description:`, заголовок документа, имя файла.
+* `META-014` — первая пустая строка завершает AsciiDoc header; атрибутоподобные строки body не влияют на metadata и deprecated-семантику.
 
 == Физическое пространство документов
 
@@ -100,7 +104,7 @@
 
 == Поиск и навигация
 
-* `SEARCH-001` — регистронезависимый полнотекстовый поиск по регулярному выражению через `zt-find.zsh`.
+* `SEARCH-001` — регистронезависимый полнотекстовый поиск по буквальной строке через `zt-find.zsh`; символы регулярных выражений не имеют специального значения.
 * `SEARCH-002` — вывод результатов поиска как AsciiDoc-представления со ссылками.
 * `SEARCH-003` — объединение полного содержимого найденных документов через `zt-read.zsh`.
 * `SEARCH-004` — возможность перенаправить stdout `zt-find.zsh` и `zt-read.zsh` в файл.
@@ -129,6 +133,7 @@
 * `LINK-014` — использование меток `Развитие:` и `Основано на:` для связи поколений Topic.
 * `LINK-015` — поддержка цепочки нескольких поколений Topic.
 * `LINK-016` — идемпотентное добавление связей по UUID целевого документа.
+* `LINK-017` — Topic без непустого header-атрибута `:key-topic:` исключается из селектора привязки Memo.
 
 == Memo Chains
 
@@ -226,6 +231,42 @@
 * `PUBLISH-008` — `.DS_Store` исключается из dry-run и реального копирования `.scripts/`.
 * `PUBLISH-009` — скрипт не выполняет `git add`, `git commit` или `git push`.
 * `PUBLISH-010` — ошибка создания целевого каталога или любого вызова `rsync` завершает публикацию с ненулевым кодом и сообщением в stderr.
+* `PUBLISH-011` — destination `.scripts/` является exact mirror source: dry-run показывает удаления, а `--apply` удаляет устаревшие файлы только внутри destination `.scripts/`.
+* `PUBLISH-012` — `.DS_Store` и каталоги `__MACOSX/` исключаются и удаляются из destination mirror.
+
+== Архитектурные слои создания документов
+
+[source,text]
+----
+.scripts/
+├── objects/
+│   ├── note-create.zsh
+│   ├── memo-create.zsh
+│   ├── topic-create.zsh
+│   ├── todo-create.zsh
+│   └── diary-create.zsh
+├── zettelkasten/
+│   ├── zt-note.zsh
+│   ├── zt-memo.zsh
+│   ├── zt-keytopic.zsh
+│   ├── zt-todo.zsh
+│   ├── zt-diary.zsh
+│   └── lib/
+│       ├── today.zsh
+│       ├── bindings.zsh
+│       └── workspace.zsh
+└── lib/
+    ├── paths.zsh
+    ├── uuid.zsh
+    └── asciidoc.zsh
+----
+
+* `LAYER-001` — `objects/` создаёт корректные постоянные объекты и не знает про `fzf`, Vim, `all-todays`, bindings и Diary state.
+* `LAYER-002` — `zettelkasten/` содержит пользовательскую policy поверх object constructors.
+* `LAYER-003` — `lib/` содержит нейтральные примитивы и не зависит от `zettelkasten/`.
+* `LAYER-004` — старые top-level creation scripts сохранены как compatibility entrypoints.
+* `LAYER-005` — `zt-continue` создаёт Memo через `objects/memo-create.zsh`; Clean Successor Reduce и Refine используют формальный Topic writer из `objects/topic-create.zsh`.
+* `LAYER-006` — переходные host-команды напрямую используют plugin policy libraries: Continue/Reduce/Refine — `today.zsh`, Continue — `bindings.zsh`, Workspace-команды — `workspace.zsh`.
 
 == Исполняемые скрипты
 
@@ -291,11 +332,10 @@ ztscripts
 
 == Известные ограничения
 
-* `zt-scripts-patch.zsh` использует жёсткий путь `$HOME/zettelkasten/.scripts` и не поддерживает `ZK_HOME`.
 * Исключение служебных тегов при наследовании ограничено тегом непосредственного исходного типа.
 * Проверка ссылок внутри блоков кода в `zt-check.zsh` распознаёт только блоки `----` и Markdown-блоки с тройными обратными кавычками.
 * Reduce не обеспечивает глобальную уникальность активной Topic по `:key-topic:`.
-* Скрипты доступны как файлы `.scripts/zt-*.zsh`; команды без расширения не устанавливаются в `PATH`.
+* Публичные compatibility entrypoints доступны как `.scripts/zt-*.zsh`; канонические creation workflow находятся в `.scripts/zettelkasten/`; команды без расширения не устанавливаются в `PATH`.
 * Корневой каталог назначения публикации должен существовать до запуска `zt-develop-publish-version.zsh`.
 * Публикация пока не запускает `zt-check`, не проверяет зависимости и состояние Git репозитория назначения.
 * `zt-processed.zsh` использует hard link для атомарной защиты назначения, поэтому `inbox/raw` и `inbox/processed` должны находиться на одной файловой системе.

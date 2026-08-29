@@ -11,13 +11,13 @@ setopt null_glob
 
 script_dir="${0:A:h}"
 source "$script_dir/lib/paths.zsh"
-source "$script_dir/lib/workspace.zsh"
+source "$script_dir/zettelkasten/lib/workspace.zsh"
 
 sep=$'\x1f'
 
-zk_require_workspaces || exit 1
+zt_require_workspaces || exit 1
 
-selected="$(zk_select_workspace 'workspace> ')"
+selected="$(zt_select_workspace 'workspace> ')"
 
 [[ -n "$selected" ]] || exit 0
 

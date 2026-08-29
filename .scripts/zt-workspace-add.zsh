@@ -12,7 +12,7 @@ setopt null_glob
 script_dir="${0:A:h}"
 source "$script_dir/lib/paths.zsh"
 source "$script_dir/lib/asciidoc.zsh"
-source "$script_dir/lib/workspace.zsh"
+source "$script_dir/zettelkasten/lib/workspace.zsh"
 
 sep=$'\x1f'
 
@@ -42,11 +42,11 @@ select_documents() {
       --prompt='add documents> '
 }
 
-zk_cd
+zk_cd || exit 1
 
-zk_require_workspaces || exit 1
+zt_require_workspaces || exit 1
 
-selected_workspace="$(zk_select_workspace 'workspace> ')"
+selected_workspace="$(zt_select_workspace 'workspace> ')"
 [[ -n "$selected_workspace" ]] || exit 0
 
 selected_workspace="${selected_workspace%%$'\n'*}"
@@ -61,7 +61,7 @@ while IFS= read -r selected_document; do
   doc_file="${${selected_document#*$sep}%%$sep*}"
   description="${selected_document##*$sep}"
   relative_target="../notes/${doc_file}"
-  link="$(zk_workspace_link "$doc_file" "$description")"
+  link="$(zt_workspace_link "$doc_file" "$description")"
 
   if zk_has_link_to "$workspace_file" "$relative_target"; then
     print -r -- "Already in workspace: $link"

@@ -1,0 +1,70 @@
+= Zettelkasten как плагин основного движка
+:revdate: 2026-08-29
+:toc:
+
+== Роль плагина
+
+Основной движок умеет создавать валидные AsciiDoc-объекты и предоставляет
+нейтральные операции над путями, UUID, metadata и ссылками. Плагин Zettelkasten
+превращает эти примитивы в пользовательский workflow личной базы знаний.
+
+== Структура
+
+[source,text]
+----
+.scripts/
+├── lib/                    # neutral engine primitives
+├── objects/                # neutral object constructors
+├── zettelkasten/           # plugin
+│   ├── docs/
+│   ├── lib/
+│   │   ├── bindings.zsh
+│   │   ├── today.zsh
+│   │   └── workspace.zsh
+│   ├── zt-note.zsh
+│   ├── zt-memo.zsh
+│   ├── zt-keytopic.zsh
+│   ├── zt-todo.zsh
+│   └── zt-diary.zsh
+└── zt-*.zsh               # host CLI and compatibility entrypoints
+----
+
+== Поток создания
+
+[source,text]
+----
+compatibility entrypoint
+  -> plugin workflow
+     -> engine constructor
+        -> neutral lib
+     -> plugin policy: binding / today / diary state
+     -> editor + output link
+----
+
+== Публичная граница движка
+
+Плагин использует функции `zk_*` из `lib/` и `objects/`. Собственные функции
+policy имеют prefix `zt_*`. Временные переменные библиотек не должны попадать в
+namespace подключающего скрипта.
+
+== Текущая граница миграции
+
+Плагин содержит только пять creation workflow и три policy library. Остальные
+доменные команды физически остаются host CLI. Часть из них временно использует
+plugin policy напрямую: Continue, Reduce и Refine используют `today.zsh`,
+Continue использует `bindings.zsh`, а Workspace-команды используют
+`workspace.zsh`. Их можно переносить в плагин позднее, но документация не
+считает такой перенос уже состоявшимся.
+
+[source,text]
+----
+host CLI -> objects / lib / plugin entrypoints
+host CLI -> plugin/lib  # transitional dependency
+----
+
+== Документация
+
+* `requirements.adoc` — нормативный контракт плагина.
+* `features.adoc` — подтверждённые возможности плагина.
+* `../../docs/requirements.adoc` — контракт основного движка.
+* `../../docs/object-layer.adoc` — API constructors.

@@ -12,7 +12,7 @@ setopt null_glob
 script_dir="${0:A:h}"
 source "$script_dir/lib/paths.zsh"
 source "$script_dir/lib/asciidoc.zsh"
-source "$script_dir/lib/workspace.zsh"
+source "$script_dir/zettelkasten/lib/workspace.zsh"
 
 sep=$'\x1f'
 
@@ -193,13 +193,13 @@ remove_workspace_links() {
 }
 
 zk="$(zk_home)"
-workspaces_dir="$(zk_workspaces_dir)"
+workspaces_dir="$(zt_workspaces_dir)"
 
-zk_cd
+zk_cd || exit 1
 
-zk_require_workspaces || exit 1
+zt_require_workspaces || exit 1
 
-selected_workspace="$(zk_select_workspace 'workspace> ')"
+selected_workspace="$(zt_select_workspace 'workspace> ')"
 [[ -n "$selected_workspace" ]] || exit 0
 
 selected_workspace="${selected_workspace%%$'\n'*}"
