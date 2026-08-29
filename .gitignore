@@ -1,3 +1,20 @@
+#------------------------------------------------------------------------------
+# English Reading Lab
+# Local and generated files
+#------------------------------------------------------------------------------
+
+# Source books
+/books/
+
+# macOS
 .DS_Store
-.state
+
+# Vim
 *.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+.state
