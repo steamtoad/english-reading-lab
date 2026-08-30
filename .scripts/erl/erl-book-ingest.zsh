@@ -39,6 +39,8 @@ erl_require_command jq
 [[ -n "$policy_file" && -f "$policy_file" ]] || erl_fail 20 error NOT_FOUND "Policy file not found: $policy_file"
 erl_policy_validate "$policy_file" || erl_fail 10 error VALIDATION_FAILED "Policy does not satisfy extraction-policy-v1 or identity hash mismatch"
 vault="$(erl_resolve_vault "$vault_arg")"
+topic_constructor="$(erl_host_object_command "$vault" topic-create.zsh)" || erl_fail 50 error HOST_CONTRACT_UNAVAILABLE "Target host does not provide executable .scripts/objects/topic-create.zsh"
+note_constructor="$(erl_host_object_command "$vault" note-create.zsh)" || erl_fail 50 error HOST_CONTRACT_UNAVAILABLE "Target host does not provide executable .scripts/objects/note-create.zsh"
 source_file="${source_file:A}"
 fingerprint="$(erl_sha256_file "$source_file")"
 chapters="$(erl_source_chapters "$source_file")" || erl_fail 10 error INVALID_INPUT "Unsupported or unreadable source book: $source_file"
@@ -115,9 +117,8 @@ rollback_ingest() {
   fi
 }
 
-objects_dir="$script_dir/../objects"
 topic_title="$key_topic - ключевая тема"
-generation_fname="$(ZK_HOME="$vault" "$objects_dir/topic-create.zsh" "$topic_title" "$key_topic" topic "$topic_title")" || { rollback_ingest; erl_fail 50 error IO_ERROR "Canonical Topic constructor failed"; }
+generation_fname="$(ZK_HOME="$vault" "$topic_constructor" "$topic_title" "$key_topic" topic "$topic_title")" || { rollback_ingest; erl_fail 50 error IO_ERROR "Canonical Topic constructor failed"; }
 generation_uuid="${generation_fname%.adoc}"
 created_docs+=("$vault/notes/$generation_fname")
 journal_created_artifact "$vault/notes/$generation_fname" document || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot journal created Book Topic"; }
@@ -128,7 +129,7 @@ if (( ! reuse_source )); then
     chapter_title="$(jq -r .title <<< "$chapter_row")"
     locator="$(jq -r .chapter_locator <<< "$chapter_row")"
     source_order="$(jq -r .source_order <<< "$chapter_row")"
-    chapter_fname="$(ZK_HOME="$vault" "$objects_dir/note-create.zsh" "$chapter_title" note "$chapter_title")" || { rollback_ingest; erl_fail 50 error IO_ERROR "Canonical Note constructor failed"; }
+    chapter_fname="$(ZK_HOME="$vault" "$note_constructor" "$chapter_title" note "$chapter_title")" || { rollback_ingest; erl_fail 50 error IO_ERROR "Canonical Note constructor failed"; }
     chapter_uuid="${chapter_fname%.adoc}"
     created_docs+=("$vault/notes/$chapter_fname")
     {

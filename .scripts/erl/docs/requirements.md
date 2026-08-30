@@ -37,6 +37,8 @@ Runtime dependency direction:
 
 ERL -> objects -> lib
 ERL -> lib
+
+objects и lib являются host-provided runtime contracts и не принадлежат ERL repository.
 ```
 
 ```text
@@ -54,8 +56,8 @@ ERL может использовать canonical host commands, включая 
 ERL-ARCH-006
 Skill принимает semantic decisions и выполняет orchestration.
 .scripts/erl/ реализует deterministic ERL operations.
-.scripts/objects/ создаёт canonical Vault objects.
-.scripts/lib/ предоставляет domain-neutral primitives.
+Host .scripts/objects/ создаёт canonical Vault objects.
+Host .scripts/lib/ предоставляет domain-neutral primitives.
 ```
 
 ```text
@@ -68,6 +70,13 @@ ERL implementation task не изменяет host Zettelkasten repository.
 ERL-ARCH-008
 Если существующего host contract недостаточно, это фиксируется как contract gap.
 ERL не патчит core автоматически.
+```
+
+```text
+ERL-ARCH-009
+ERL source и target host/Vault могут находиться в разных filesystem roots.
+Host operations разрешаются только через contract целевого host/Vault.
+Repository-relative production fallback запрещён; отсутствие contract даёт explicit error.
 ```
 
 ---
@@ -96,6 +105,13 @@ ERL-REPO-003
 ERL-REPO-004
 Удаление ERL plugin не должно ломать Classic Zettelkasten workflow,
 существующие UUID, filenames или internal links.
+```
+
+```text
+ERL-REPO-005
+ERL repository не содержит tracked production implementation host core.
+Минимальные test doubles допустимы только в явно test-scoped fixtures
+и не используются production runtime как fallback.
 ```
 
 ---

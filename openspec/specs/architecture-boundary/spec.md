@@ -36,12 +36,17 @@ ERL runtime dependencies MUST соблюдать направление:
 
 `ERL -> lib`.
 
+`objects/` и `lib/` в этой dependency model являются host-provided
+runtime contracts и MUST NOT подразумевать repository ownership этих
+components со стороны ERL.
+
 #### Scenario: Runtime dependency is added
 
 - **WHEN** ERL implementation добавляет runtime dependency
-- **THEN** dependency MAY направляться из ERL в canonical `objects/` или domain-neutral `lib/`
+- **THEN** dependency MAY направляться из ERL в host-provided canonical `objects/` или domain-neutral `lib/`
 - **AND** canonical object layer MAY зависеть от `lib/`
 - **AND** dependency SHALL NOT обращать это направление в сторону ERL
+- **AND** наличие runtime dependency SHALL NOT требовать хранения production implementation этой dependency в ERL repository
 
 ### Requirement: ERL-ARCH-004 — No Classic implementation API dependency
 
@@ -72,16 +77,16 @@ ERL layers MUST сохранять разделение ответственно
 
 - Skill выполняет semantic decisions и orchestration.
 - `.scripts/erl/` реализует deterministic ERL domain operations.
-- `.scripts/objects/` предоставляет canonical Topic, Note и Memo construction.
-- `.scripts/lib/` предоставляет domain-neutral primitives.
+- Host `.scripts/objects/` предоставляет canonical Topic, Note и Memo construction.
+- Host `.scripts/lib/` предоставляет domain-neutral primitives.
 
 #### Scenario: New functionality is assigned to a layer
 
 - **WHEN** новая ERL functionality проектируется
 - **THEN** semantic reasoning и orchestration SHALL размещаться на skill layer
 - **AND** deterministic ERL mutation/validation SHALL размещаться в ERL domain tooling
-- **AND** canonical Vault object construction SHALL оставаться в canonical object layer
-- **AND** reusable domain-neutral primitives SHALL оставаться в library layer
+- **AND** canonical Vault object construction SHALL оставаться в host-owned canonical object layer
+- **AND** reusable host domain-neutral primitives SHALL оставаться в host-owned library layer
 
 ### Requirement: ERL-ARCH-007 — ERL is developed in its own repository
 
@@ -106,6 +111,34 @@ ERL MUST разрабатываться в отдельном repository.
 - **THEN** deficiency SHALL быть зафиксирована как host contract gap
 - **AND** ERL SHALL NOT автоматически изменять host core
 - **AND** host contract change SHALL требовать отдельного решения
+
+### Requirement: ERL-ARCH-009 — ERL source and host source are independent
+
+ERL source location MUST быть независима от source location целевого
+Zettelkasten host/Vault.
+
+ERL executables MUST NOT требовать, чтобы production host core
+implementation находилась внутри ERL repository или `ERL_HOME`.
+
+Canonical host operations MUST разрешаться через host contract,
+предоставляемый целевым Zettelkasten host/Vault, а не через
+repository-relative production copies внутри ERL source tree.
+
+#### Scenario: ERL and host use different filesystem roots
+
+- **GIVEN** ERL repository и целевой Zettelkasten host/Vault находятся в разных filesystem roots
+- **WHEN** ERL operation требует canonical host object или library operation
+- **THEN** operation SHALL использовать host contract, предоставляемый целевым host/Vault
+- **AND** operation SHALL NOT требовать `.scripts/objects/`, `.scripts/lib/` или `.scripts/zettelkasten/` внутри ERL repository
+- **AND** различие ERL repository root и host/Vault root SHALL считаться нормальной поддерживаемой конфигурацией
+
+#### Scenario: Required host contract is unavailable
+
+- **GIVEN** целевой host/Vault не предоставляет обязательную часть host contract
+- **WHEN** ERL пытается выполнить operation, зависящую от этой capability
+- **THEN** ERL SHALL завершить operation с явной diagnostic error
+- **AND** ERL SHALL NOT silently fallback к bundled, vendored или repository-relative production copy host implementation
+- **AND** deficiency SHALL обрабатываться согласно `ERL-ARCH-008`
 
 ### Requirement: ERL-REPO-001 — ERL repository ownership
 
@@ -149,3 +182,37 @@ Marta и другие implementation agents MUST NOT изменять host `.scr
 - **AND** существующие canonical UUID SHALL сохранять identity
 - **AND** filenames SHALL оставаться действительными
 - **AND** canonical internal links SHALL оставаться действительными
+
+### Requirement: ERL-REPO-005 — No committed production host implementation
+
+ERL repository MUST NOT содержать tracked production copies host-owned
+implementation.
+
+К host-owned production implementation относятся как минимум:
+
+- `.scripts/lib/`;
+- `.scripts/objects/`;
+- `.scripts/zettelkasten/`;
+- host `zcreate`;
+- host `zt-*` implementation;
+- иные production components, принадлежащие canonical Zettelkasten host.
+
+ERL repository MAY содержать минимальные test doubles, stubs и fixtures,
+реализующие необходимую часть host contract исключительно для ERL tests.
+
+Такие test artifacts MUST быть явно test-scoped и MUST NOT использоваться
+как production fallback host implementation.
+
+#### Scenario: Repository ownership is validated
+
+- **WHEN** tracked contents ERL repository проверяются на соответствие architecture boundary
+- **THEN** production host implementation SHALL NOT присутствовать среди ERL-owned files
+- **AND** ERL production runtime SHALL NOT зависеть от такой repository-local copy
+
+#### Scenario: ERL test needs an isolated host implementation
+
+- **WHEN** ERL contract или unit test требует контролируемую реализацию host contract
+- **THEN** test MAY использовать минимальный test double, stub или fixture
+- **AND** artifact SHALL быть явно ограничен test scope
+- **AND** artifact SHALL NOT считаться canonical host implementation
+- **AND** production ERL runtime SHALL NOT использовать его как fallback

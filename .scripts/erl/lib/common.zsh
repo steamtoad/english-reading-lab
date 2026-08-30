@@ -124,6 +124,28 @@ erl_find_source_file() {
   return 1
 }
 
+erl_host_root() {
+  local vault="$1" configured="" descriptor="$vault/.state/erl/host-contract.json"
+  if [[ -n "${ERL_HOST_HOME:-}" ]]; then
+    configured="${ERL_HOST_HOME:A}"
+  elif [[ -f "$descriptor" ]]; then
+    configured="$(jq -r '.host_root // empty' "$descriptor" 2>/dev/null)"
+    [[ "$configured" == /* ]] || return 1
+  elif [[ -d "$vault/.scripts/objects" ]]; then
+    configured="$vault"
+  fi
+  [[ -n "$configured" && -d "$configured/.scripts/objects" ]] || return 1
+  print -r -- "$configured"
+}
+
+erl_host_object_command() {
+  local vault="$1" command_name="$2" host_root command_path
+  host_root="$(erl_host_root "$vault")" || return 1
+  command_path="$host_root/.scripts/objects/$command_name"
+  [[ -f "$command_path" && -x "$command_path" ]] || return 1
+  print -r -- "$command_path"
+}
+
 erl_chapter_source_order() {
   local vault="$1" generation_file="$2" chapter_uuid="$3" source_id source_file
   source_id="$(jq -r '.source_id // empty' "$generation_file")"

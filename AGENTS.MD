@@ -90,12 +90,16 @@ Skill
 .scripts/erl/
     deterministic ERL domain operation
 
-.scripts/objects/
+Host .scripts/objects/
     canonical Topic/Note/Memo construction
 
-.scripts/lib/
+Host .scripts/lib/
     domain-neutral primitive
 ```
+
+Host contract разрешается через target host/Vault и не хранится как production
+implementation в ERL repository. Repository-local host fallback запрещён;
+test doubles допустимы только под явно test-scoped `fixtures/`.
 
 Не дублировать canonical object construction внутри ERL.
 

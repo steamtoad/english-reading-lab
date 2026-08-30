@@ -11,6 +11,7 @@ setopt errexit pipe_fail no_unset
 
 repo="${0:A:h:h}"
 erl="$repo/.scripts/erl"
+export ERL_HOST_HOME="$repo/fixtures/host-contract"
 fixture="$(mktemp -d "${TMPDIR:-/tmp}/erl-cli-test.XXXXXX")"
 trap 'rm -rf -- "$fixture"' EXIT HUP INT TERM
 vault="$fixture/vault"
@@ -31,6 +32,19 @@ print -r -- "$policy_base" | jq --arg identity "$policy_identity" '.+{identity:$
 assert_envelope() {
   jq -e '.schema_version==1 and (.command|type=="string") and (.status|IN("ok","warning","blocked","error")) and (.code|type=="string") and (.changed|type=="boolean") and (.data|type=="object") and (.diagnostics|type=="array")' "$1" >/dev/null
 }
+
+# Production runtime must fail explicitly when the target host contract is
+# unavailable; repository-local test doubles are never an implicit fallback.
+missing_host_vault="$fixture/missing-host-vault"
+mkdir -p "$missing_host_vault/notes"
+set +e
+env -u ERL_HOST_HOME "$erl/erl-book-ingest.zsh" --vault "$missing_host_vault" --source "$fixture/book.txt" --title 'Missing Host' --key-topic 'Missing Host' --policy-file "$fixture/policy.json" --dry-run --json > "$fixture/missing-host.json"
+missing_host_rc=$?
+set -e
+if [[ "$missing_host_rc" != 50 ]] || ! jq -e '.status=="error" and .code=="HOST_CONTRACT_UNAVAILABLE" and .changed==false' "$fixture/missing-host.json" >/dev/null; then
+  print -ru2 -- 'FAIL: ERL silently accepted a missing host contract'
+  exit 1
+fi
 
 before="$(find "$vault" -type f | wc -l | tr -d ' ')"
 "$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --title 'Example Book' --key-topic 'English Reading' --policy-file "$fixture/policy.json" --dry-run --json > "$fixture/book-dry.json"

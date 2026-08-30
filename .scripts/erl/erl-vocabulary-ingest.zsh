@@ -30,6 +30,7 @@ erl_require_command jq
 [[ "$extraction_id" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]] || erl_fail 10 error INVALID_INPUT "EXTRACTION_ID must be lowercase UUID v4"
 [[ "$candidate_ordinal" == <-> && "$candidate_ordinal" -ge 1 ]] || erl_fail 10 error INVALID_INPUT "Candidate ordinal must be a positive integer"
 vault="$(erl_resolve_vault "$vault_arg")"
+memo_constructor="$(erl_host_object_command "$vault" memo-create.zsh)" || erl_fail 50 error HOST_CONTRACT_UNAVAILABLE "Target host does not provide executable .scripts/objects/memo-create.zsh"
 staging_file="$(erl_extraction_file "$vault" "$extraction_id" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Staged extraction not found: $extraction_id"
 candidate="$(jq -c --argjson ordinal "$candidate_ordinal" '.candidates[]? | select(.ordinal==$ordinal)' "$staging_file")"
 [[ -n "$candidate" ]] || erl_fail 20 error NOT_FOUND "Candidate ordinal not found: $candidate_ordinal"
@@ -76,7 +77,7 @@ cp -- "$generation_file" "$tx_dir/backups/generation.json"
 jq -cn --arg txid "$txid" --arg generation "$generation" --arg extraction "$extraction_id" --argjson candidate "$candidate_ordinal" --arg generation_path "$generation_file" --arg generation_pre_hash "$(erl_sha256_file "$generation_file")" '{schema_version:1,txid:$txid,operation:"erl-vocabulary-ingest",phase:"applying",generation_uuid:$generation,generation_path:$generation_path,generation_pre_hash:$generation_pre_hash,extraction_id:$extraction,candidate_ordinal:$candidate}' | erl_atomic_write "$tx_dir/transaction.json" || erl_fail 50 error IO_ERROR "Cannot write transaction journal"
 
 surface="$(jq -r .surface_form <<< "$candidate")"; context="$(erl_json_escape_asciidoc "$(jq -r .context <<< "$candidate")")"
-memo_fname="$(ZK_HOME="$vault" "$script_dir/../objects/memo-create.zsh" "$surface" memo "$surface")" || erl_fail 50 error IO_ERROR "Canonical Memo constructor failed"
+memo_fname="$(ZK_HOME="$vault" "$memo_constructor" "$surface" memo "$surface")" || erl_fail 50 error IO_ERROR "Canonical Memo constructor failed"
 document_uuid="${memo_fname%.adoc}"; document_file="$vault/notes/$memo_fname"
 if [[ "$role" == vocabulary ]]; then
   translations="$(jq -r '.enrichment.translation_ru|join(", ")' <<< "$candidate")"

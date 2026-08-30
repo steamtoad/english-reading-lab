@@ -19,9 +19,19 @@ Lexi skill
     transaction handling
     reports
 
-.scripts/objects/
+host .scripts/objects/
     canonical Topic / Note / Memo creation
 ```
+
+Host contract разрешается независимо от ERL source root в порядке:
+
+1. explicit `ERL_HOST_HOME`;
+2. absolute `host_root` из `<vault>/.state/erl/host-contract.json`;
+3. `.scripts/objects/` самого target Vault/host root.
+
+Repository-relative fallback к ERL-owned `.scripts/objects/` запрещён. Если
+обязательный executable host contract отсутствует, команда завершается с
+`HOST_CONTRACT_UNAVAILABLE` до первой mutation.
 
 CLI не выполняет model inference.
 
