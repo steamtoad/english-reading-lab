@@ -72,13 +72,93 @@ jq -e '.code=="ALREADY_INGESTED" and .changed==false' "$fixture/batch-repeat.jso
 "$erl/erl-check.zsh" --vault "$vault" --work "$work_id" --json > "$fixture/check.json"
 jq -e '.status=="ok" and .data.counts.errors==0' "$fixture/check.json" >/dev/null
 
-"$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --dry-run --json > "$fixture/reduce-dry.json"
+# Single-Candidate ingestion is a separate public workflow from Chapter batch ingestion.
+jq '.candidates[0] |= (
+  .surface_form="bleak" |
+  .lemma="bleak" |
+  .first_relevant_occurrence.text="bleak sentinel" |
+  .context="The bleak sentinel stood watch." |
+  .enrichment.translation_ru=["мрачный"] |
+  .enrichment.definition_en="cold and miserable" |
+  .enrichment.sense_gloss="cold and miserable"
+)' "$fixture/extraction.json" > "$fixture/single-extraction.json"
+"$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/single-extraction.json" --apply --json > "$fixture/single-stage.json"
+single_extraction="$(jq -r .data.extraction_id "$fixture/single-stage.json")"
+"$erl/erl-vocabulary-ingest.zsh" --vault "$vault" --extraction-id "$single_extraction" --candidate 1 --dry-run --json > "$fixture/single-dry.json"
+jq -e '.changed==false and .data.role=="vocabulary" and .data.prospective_sequence_ordinal==2' "$fixture/single-dry.json" >/dev/null
+"$erl/erl-vocabulary-ingest.zsh" --vault "$vault" --extraction-id "$single_extraction" --candidate 1 --apply --json > "$fixture/single.json"
+jq -e '.changed==true and .data.role=="vocabulary" and .data.sequence_ordinal==2' "$fixture/single.json" >/dev/null
+"$erl/erl-vocabulary-ingest.zsh" --vault "$vault" --extraction-id "$single_extraction" --candidate 1 --apply --json > "$fixture/single-repeat.json"
+jq -e '.code=="ALREADY_INGESTED" and .changed==false and .data.sequence_ordinal==2' "$fixture/single-repeat.json" >/dev/null
+
+# A second Book acquiring the same lexical identity creates an Occurrence and
+# forces a cross-work fixed-point closure when the owning generation is reduced.
+print -r -- 'The forlorn ranger returned.' > "$fixture/book-two.txt"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book-two.txt" --title 'Second Book' --key-topic 'Second Reading' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book-two.json"
+generation_two="$(jq -r .data.generation_uuid "$fixture/book-two.json")"
+source_two=("$vault/.state/erl/works/second-book/sources"/*.json)
+chapter_two="$(jq -r '.chapters[0].chapter_uuid' "$source_two[1]")"
+jq --arg generation "$generation_two" --arg chapter "$chapter_two" \
+  '.generation_uuid=$generation | .chapter_uuid=$chapter | .candidates[0].context="The forlorn ranger returned." | .candidates[0].first_relevant_occurrence.text="forlorn ranger"' \
+  "$fixture/extraction.json" > "$fixture/extraction-two.json"
+"$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction-two.json" --apply --json > "$fixture/stage-two.json"
+extraction_two="$(jq -r .data.extraction_id "$fixture/stage-two.json")"
+"$erl/erl-chapter-vocabulary-ingest.zsh" --vault "$vault" --extraction-id "$extraction_two" --apply --json > "$fixture/batch-two.json"
+jq -e '.data.created_occurrences==1 and .data.created_vocabulary==0' "$fixture/batch-two.json" >/dev/null
+
+"$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --dry-run --json > "$fixture/reduce-closure.json"
+jq -e --arg additional "$generation_two" '.status=="warning" and .code=="DEPENDENCIES_REQUIRED" and (.data.additional_generations|index($additional))!=null' "$fixture/reduce-closure.json" >/dev/null
+closure_fingerprint="$(jq -r .data.plan_fingerprint "$fixture/reduce-closure.json")"
+set +e
+"$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --plan-fingerprint "$closure_fingerprint" --apply --json > "$fixture/reduce-blocked.json"
+blocked_rc=$?
+set -e
+if [[ "$blocked_rc" != 40 ]] || ! jq -e '.status=="blocked" and .code=="DEPENDENCIES_REQUIRED" and .changed==false' "$fixture/reduce-blocked.json" >/dev/null; then
+  print -ru2 -- 'FAIL: Reduce accepted an unconfirmed cross-book closure'
+  exit 1
+fi
+"$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --include-dependencies --dry-run --json > "$fixture/reduce-dry.json"
 fingerprint="$(jq -r .data.plan_fingerprint "$fixture/reduce-dry.json")"
-"$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --plan-fingerprint "$fingerprint" --apply --json > "$fixture/reduce.json"
+[[ "$fingerprint" != "$closure_fingerprint" ]] || { print -ru2 -- 'FAIL: dependency consent did not change exact-plan fingerprint'; exit 1; }
+set +e
+"$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --include-dependencies --plan-fingerprint "$closure_fingerprint" --apply --json > "$fixture/reduce-stale.json"
+stale_rc=$?
+set -e
+if [[ "$stale_rc" != 30 ]] || ! jq -e '.status=="error" and .code=="STATE_CONFLICT" and .changed==false' "$fixture/reduce-stale.json" >/dev/null; then
+  print -ru2 -- 'FAIL: Reduce accepted a stale plan fingerprint'
+  exit 1
+fi
+"$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --include-dependencies --plan-fingerprint "$fingerprint" --apply --json > "$fixture/reduce.json"
 jq -e '.changed==true and .data.receipt_status=="committed"' "$fixture/reduce.json" >/dev/null
 [[ ! -f "$vault/.state/erl/works/example-book/generations/$generation.json" ]] || { print -ru2 -- 'FAIL: Reduce retained generation state'; exit 1; }
+[[ ! -f "$vault/.state/erl/works/second-book/generations/$generation_two.json" ]] || { print -ru2 -- 'FAIL: Reduce retained dependency generation state'; exit 1; }
 grep -q '^:deprecated:$' "$vault/notes/$generation.adoc" || { print -ru2 -- 'FAIL: Reduce did not deprecate Book Topic'; exit 1; }
 grep -q '^:deprecated:$' "$vault/notes/$chapter.adoc" && { print -ru2 -- 'FAIL: Reduce deprecated Chapter Note'; exit 1; }
+grep -q '^:deprecated:$' "$vault/notes/$chapter_two.adoc" && { print -ru2 -- 'FAIL: Reduce deprecated dependency Chapter Note'; exit 1; }
 "$erl/erl-check.zsh" --vault "$vault" --json | jq -e '.status=="ok" and .data.counts.errors==0' >/dev/null
+
+# Classic reconciliation is tested separately from ERL Book Reduce, including
+# the rule that successor adoption is never implicit.
+print -r -- 'A quiet chapter.' > "$fixture/book-three.txt"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book-three.txt" --title 'Classic Book' --key-topic 'Classic Reading' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book-three.json"
+generation_three="$(jq -r .data.generation_uuid "$fixture/book-three.json")"
+work_three="$(jq -r .data.work_id "$fixture/book-three.json")"
+successor="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+cp "$vault/notes/$generation_three.adoc" "$vault/notes/$successor.adoc"
+sed -i.bak "s/$generation_three/$successor/g" "$vault/notes/$successor.adoc"
+rm -f -- "$vault/notes/$successor.adoc.bak"
+print -r -- "\nlink:$generation_three.adoc[Previous Classic Topic]" >> "$vault/notes/$successor.adoc"
+sed -i.bak '/^:docfilename:/a\
+:deprecated:' "$vault/notes/$generation_three.adoc"
+rm -f -- "$vault/notes/$generation_three.adoc.bak"
+"$erl/erl-classic-reduce-reconcile.zsh" --vault "$vault" --generation "$generation_three" --dry-run --json > "$fixture/reconcile-close.json"
+jq -e --arg successor "$successor" '.changed==false and .data.adopt_successor==null and (.data.detected_successors|index($successor))!=null' "$fixture/reconcile-close.json" >/dev/null
+"$erl/erl-classic-reduce-reconcile.zsh" --vault "$vault" --generation "$generation_three" --adopt-successor "$successor" --dry-run --json > "$fixture/reconcile-adopt-dry.json"
+jq -e --arg successor "$successor" '.changed==false and .data.adopt_successor==$successor' "$fixture/reconcile-adopt-dry.json" >/dev/null
+"$erl/erl-classic-reduce-reconcile.zsh" --vault "$vault" --generation "$generation_three" --adopt-successor "$successor" --apply --json > "$fixture/reconcile.json"
+jq -e --arg successor "$successor" '.changed==true and .data.status=="GENERATION_CLOSED_EXTERNALLY" and .data.adopted_successor==$successor' "$fixture/reconcile.json" >/dev/null
+work_three_file="$vault/.state/erl/works/classic-book/work.json"
+jq -e --arg successor "$successor" '.active_generation_uuid==$successor and (.generation_uuids|index($successor))!=null' "$work_three_file" >/dev/null
+"$erl/erl-check.zsh" --vault "$vault" --work "$work_three" --json | jq -e '.status=="ok" and .data.counts.errors==0' >/dev/null
 
 print -r -- 'PASS: ERL public CLI workflow'

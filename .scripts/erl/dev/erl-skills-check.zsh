@@ -12,11 +12,11 @@ setopt pipe_fail
 script_dir="${0:A:h}"
 erl_dir="${script_dir:h}"
 repo_root="${erl_dir:h:h}"
-skills_dir="${repo_root}/skills"
-requirements_file="${erl_dir}/docs/requirements.md"
-source_contract="${erl_dir}/docs/skill-contracts/erl-agent-contract-v1.md"
-source_authorization="${erl_dir}/docs/skill-contracts/skill-authorization-policy-v1.md"
-source_reduce_contract="${erl_dir}/docs/skill-contracts/erl-book-reduce-contract-v1.md"
+skills_dir="${ERL_SKILLS_DIR:-${repo_root}/skills}"
+requirements_file="${ERL_REQUIREMENTS_FILE:-${erl_dir}/docs/requirements.md}"
+source_contract="${ERL_AGENT_CONTRACT_FILE:-${erl_dir}/docs/skill-contracts/erl-agent-contract-v1.md}"
+source_authorization="${ERL_AUTHORIZATION_FILE:-${erl_dir}/docs/skill-contracts/skill-authorization-policy-v1.md}"
+source_reduce_contract="${ERL_REDUCE_CONTRACT_FILE:-${erl_dir}/docs/skill-contracts/erl-book-reduce-contract-v1.md}"
 
 typeset -a skill_names=(
   erl-book-ingest
@@ -26,6 +26,26 @@ typeset -a skill_names=(
   erl-book-reduce
   erl-classic-reduce-reconcile
   erl-check
+)
+
+typeset -A expected_descriptions expected_authorizations
+expected_descriptions=(
+  erl-book-ingest 'Ingest a local book into ERL as a Book Topic, durable Chapter Notes, and persistent work state.'
+  erl-chapter-vocabulary-extract 'Extract and stage policy-driven vocabulary Candidates from one ERL Chapter without creating Vault documents.'
+  erl-vocabulary-ingest 'Ingest one staged ERL Candidate as a canonical Vocabulary or Occurrence Memo.'
+  erl-chapter-vocabulary-ingest 'Ingest all staged Candidates for one ERL Chapter in source order with a completed receipt.'
+  erl-book-reduce 'Close ERL Book generations transactionally with explicit fixed-point dependency closure.'
+  erl-classic-reduce-reconcile 'Reconcile an ERL generation after supported Classic zt-reduce and optionally adopt its successor.'
+  erl-check 'Read-only validation of ERL Vault documents, persistent work state, sequences, and lifecycle diagnostics.'
+)
+expected_authorizations=(
+  erl-book-ingest 'Authorization: L2.'
+  erl-chapter-vocabulary-extract 'Authorization: L0 for export and dry-run; L1 for staging explicitly requested extraction.'
+  erl-vocabulary-ingest 'Authorization: L1 for one explicitly requested staged Candidate.'
+  erl-chapter-vocabulary-ingest 'Authorization: L2.'
+  erl-book-reduce 'Authorization: L3.'
+  erl-classic-reduce-reconcile 'Authorization: L2.'
+  erl-check 'Authorization: L0.'
 )
 
 typeset failures=0
@@ -73,7 +93,10 @@ for skill_name in "${skill_names[@]}"; do
   [[ "$frontmatter_name" == "$skill_name" ]] || fail "$skill_name: invalid frontmatter name"
   [[ -n "$description" ]] || fail "$skill_name: missing description"
   (( ${#description} <= 160 )) || fail "$skill_name: description exceeds 160 characters"
-  [[ "$description" != *"canonical ERL checker"* ]] || fail "$skill_name: description is implementation-oriented"
+  [[ "$description" == "${expected_descriptions[$skill_name]}" ]] || \
+    fail "$skill_name: description does not provide the canonical routing contract"
+  rg -qxF "${expected_authorizations[$skill_name]}" "$skill_file" || \
+    fail "$skill_name: authorization level or scope drift"
 
   cmp -s "$source_contract" "$reference_file" || fail "$skill_name: common contract hash drift"
   cmp -s "$source_authorization" "$authorization_file" || fail "$skill_name: authorization policy hash drift"
@@ -82,9 +105,32 @@ for skill_name in "${skill_names[@]}"; do
       fail "$skill_name: Reduce contract hash drift"
   fi
 
-  if rg -n 'Resolve (executable )?`erl-|Invoke `erl-|Call `erl-' "$skill_file" >/dev/null; then
-    fail "$skill_name: noncanonical executable reference"
+  rg -qF '${ERL_HOME}/.scripts/erl/<command>.zsh' "$reference_file" || \
+    fail "$skill_name: common contract does not require the canonical .zsh executable suffix"
+  if rg -n '\$\{ERL_HOME\}/\.scripts/erl/<command>([^.]|$)' "$reference_file" >/dev/null; then
+    fail "$skill_name: extensionless executable template in common contract"
   fi
+  if rg -n '\$\{ERL_HOME\}/\.scripts/erl/[a-z0-9-]+`' "$skill_file" >/dev/null; then
+    fail "$skill_name: extensionless canonical executable reference"
+  fi
+
+  case "$skill_name" in
+    erl-book-ingest|erl-chapter-vocabulary-ingest|erl-classic-reduce-reconcile)
+      rg -q 'explicit L2 confirmation' "$skill_file" || fail "$skill_name: L2 confirmation gate is missing"
+      ;;
+    erl-book-reduce)
+      rg -q 'fresh dry-run' "$skill_file" || fail "$skill_name: L3 fresh-plan gate is missing"
+      rg -q 'separate explicit consent' "$skill_file" || fail "$skill_name: L3 dependency consent gate is missing"
+      rg -q -- '--plan-fingerprint HASH' "$skill_file" || fail "$skill_name: L3 exact-plan fingerprint gate is missing"
+      ;;
+    erl-check)
+      rg -q 'strictly read-only' "$skill_file" || fail "$skill_name: L0 read-only guarantee is missing"
+      rg -n -- '--apply|--fix' "$skill_file" | rg -q 'never add' || fail "$skill_name: L0 mutation prohibition is missing"
+      ;;
+    erl-vocabulary-ingest|erl-chapter-vocabulary-extract)
+      rg -q 'explicit' "$skill_file" || fail "$skill_name: L1 explicit-request boundary is missing"
+      ;;
+  esac
 
   while IFS= read -r requirement_id; do
     rg -q "^${requirement_id}$" "$requirements_file" || fail "$skill_name: unknown requirement ID $requirement_id"

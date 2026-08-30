@@ -12,7 +12,7 @@ them, stop and report the conflict.
 3. Otherwise return `NOT_FOUND`.
 4. Never infer a repository from a user home or hard-coded path.
 5. After resolution, invoke every ERL executable only as
-   `${ERL_HOME}/.scripts/erl/<command>`; never search PATH or use another copy.
+   `${ERL_HOME}/.scripts/erl/<command>.zsh`; never search PATH or use another copy.
 
 The only checker executable is `${ERL_HOME}/.scripts/erl/erl-check.zsh`.
 
