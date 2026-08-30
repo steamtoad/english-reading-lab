@@ -36,6 +36,14 @@ candidate="$(jq -c --argjson ordinal "$candidate_ordinal" '.candidates[]? | sele
 generation="$(jq -r .generation_uuid "$staging_file")"; chapter="$(jq -r .chapter_uuid "$staging_file")"
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"
 [[ "$(jq -r '.status // "active"' "$generation_file")" == active ]] || erl_fail 40 blocked GENERATION_CLOSED_EXTERNALLY "Generation is not active"
+current_source_order="$(erl_chapter_source_order "$vault" "$generation_file" "$chapter" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Chapter is not registered in generation source"
+max_source_order=0
+for prior_chapter in "${(@f)$(jq -r '.sequence[]?.chapter_uuid // empty' "$generation_file" | sort -u)}"; do
+  [[ -n "$prior_chapter" ]] || continue
+  prior_source_order="$(erl_chapter_source_order "$vault" "$generation_file" "$prior_chapter" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Sequence Chapter is absent from generation source: $prior_chapter"
+  (( prior_source_order > max_source_order )) && max_source_order="$prior_source_order"
+done
+(( current_source_order >= max_source_order )) || erl_fail 30 error STATE_CONFLICT "Chapter ingestion would violate source-order sequence"
 completed="$(jq -c --arg extraction "$extraction_id" --argjson ordinal "$candidate_ordinal" '[.ingestion_receipts[]? | select(.extraction_id==$extraction) | .candidates[]? | select(.ordinal==$ordinal and .status=="completed")][0] // empty' "$generation_file")"
 if [[ -n "$completed" ]]; then
   data="$(jq -cn --arg extraction_id "$extraction_id" --argjson ordinal "$candidate_ordinal" --argjson completed "$completed" '{extraction_id:$extraction_id,candidate_ordinal:$ordinal,role:$completed.role,document_uuid:$completed.document_uuid,vocabulary_uuid:($completed.vocabulary_uuid//null),sequence_ordinal:$completed.sequence_ordinal}')"
@@ -65,7 +73,7 @@ fi
 txid="$(erl_uuid_v4)" || erl_fail 50 error IO_ERROR "Cannot generate TXID"
 tx_dir="$vault/.state/erl/transactions/$txid"; mkdir -p -- "$tx_dir/backups" || erl_fail 50 error IO_ERROR "Cannot create transaction journal"
 cp -- "$generation_file" "$tx_dir/backups/generation.json"
-jq -cn --arg txid "$txid" --arg generation "$generation" --arg extraction "$extraction_id" --argjson candidate "$candidate_ordinal" '{schema_version:1,txid:$txid,operation:"erl-vocabulary-ingest",phase:"applying",generation_uuid:$generation,extraction_id:$extraction,candidate_ordinal:$candidate}' | erl_atomic_write "$tx_dir/transaction.json" || erl_fail 50 error IO_ERROR "Cannot write transaction journal"
+jq -cn --arg txid "$txid" --arg generation "$generation" --arg extraction "$extraction_id" --argjson candidate "$candidate_ordinal" --arg generation_path "$generation_file" --arg generation_pre_hash "$(erl_sha256_file "$generation_file")" '{schema_version:1,txid:$txid,operation:"erl-vocabulary-ingest",phase:"applying",generation_uuid:$generation,generation_path:$generation_path,generation_pre_hash:$generation_pre_hash,extraction_id:$extraction,candidate_ordinal:$candidate}' | erl_atomic_write "$tx_dir/transaction.json" || erl_fail 50 error IO_ERROR "Cannot write transaction journal"
 
 surface="$(jq -r .surface_form <<< "$candidate")"; context="$(erl_json_escape_asciidoc "$(jq -r .context <<< "$candidate")")"
 memo_fname="$(ZK_HOME="$vault" "$script_dir/../objects/memo-create.zsh" "$surface" memo "$surface")" || erl_fail 50 error IO_ERROR "Canonical Memo constructor failed"
@@ -91,6 +99,12 @@ else
   } >> "$document_file"
 fi
 
+jq --arg document_uuid "$document_uuid" --arg document_path "$document_file" --arg document_hash "$(erl_sha256_file "$document_file")" '.phase="document_created"|.document_uuid=$document_uuid|.document_path=$document_path|.document_hash=$document_hash' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || {
+  rm -f -- "$document_file"
+  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+  erl_fail 60 error TRANSACTION_FAILED "Cannot record created document recovery metadata"
+}
+
 total_candidates="$(jq '.candidates|length' "$staging_file")"
 receipt_candidate="$(jq -cn --argjson ordinal "$candidate_ordinal" --arg role "$role" --arg document_uuid "$document_uuid" --arg vocabulary_uuid "$vocabulary_uuid" --argjson sequence_ordinal "$sequence_ordinal" '{ordinal:$ordinal,status:"completed",role:$role,document_uuid:$document_uuid,sequence_ordinal:$sequence_ordinal} + if $vocabulary_uuid=="" then {} else {vocabulary_uuid:$vocabulary_uuid} end')"
 entry="$(jq -cn --argjson ordinal "$sequence_ordinal" --arg chapter_uuid "$chapter" --arg role "$role" --arg document_uuid "$document_uuid" --arg extraction_id "$extraction_id" --argjson candidate_ordinal "$candidate_ordinal" --arg identity_key "$identity_key" --arg vocabulary_uuid "$vocabulary_uuid" '{ordinal:$ordinal,chapter_uuid:$chapter_uuid,role:$role,document_uuid:$document_uuid,extraction_id:$extraction_id,candidate_ordinal:$candidate_ordinal,lexical_identity_key:$identity_key} + if $vocabulary_uuid=="" then {} else {vocabulary_uuid:$vocabulary_uuid} end')"
@@ -102,7 +116,18 @@ jq --argjson entry "$entry" --arg document_uuid "$document_uuid" --arg role "$ro
   ($old | .candidates=((.candidates//[])+[$receipt_candidate]|unique_by(.ordinal)) |
     .status=(if ([.candidates[]|select(.status=="completed")]|length)>=$total then "completed" else "applying" end)) as $new |
   .ingestion_receipts=(($all|map(select(.extraction_id!=$extraction)))+[$new])
-' "$generation_file" | erl_atomic_write "$generation_file" || { rm -f -- "$document_file"; cp "$tx_dir/backups/generation.json" "$generation_file"; erl_fail 60 error TRANSACTION_FAILED "Cannot update generation state"; }
+' "$generation_file" | erl_atomic_write "$generation_file" || {
+  rm -f -- "$document_file"
+  cp "$tx_dir/backups/generation.json" "$generation_file"
+  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+  erl_fail 60 error TRANSACTION_FAILED "Cannot update generation state"
+}
+jq --arg hash "$(erl_sha256_file "$generation_file")" '.phase="state_updated"|.generation_post_hash=$hash' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || {
+  rm -f -- "$document_file"
+  cp "$tx_dir/backups/generation.json" "$generation_file"
+  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+  erl_fail 60 error TRANSACTION_FAILED "Cannot record updated state recovery metadata"
+}
 
 set +e; check_output="$(erl_run_check "$vault" generation "$generation")"; check_rc=$?; set -e
 if (( check_rc != 0 )); then

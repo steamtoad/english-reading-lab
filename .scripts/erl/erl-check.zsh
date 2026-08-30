@@ -116,6 +116,15 @@ json_value() {
   jq -er "$filter // empty" "$file" 2>/dev/null
 }
 
+chapter_source_order() {
+  local generation_file="$1" chapter_uuid="$2" source_id
+  local -a source_files
+  source_id="$(json_value "$generation_file" '.source_id')"
+  source_files=("$works_root"/*/sources/"$source_id.json"(N))
+  (( ${#source_files} == 1 )) || return 1
+  jq -er --arg chapter "$chapter_uuid" '.chapters[]? | select(.chapter_uuid==$chapter) | .source_order' "$source_files[1]" 2>/dev/null | head -n 1
+}
+
 doc_path() {
   local uuid="$1"
   if [[ -f "$vault/notes/$uuid.adoc" ]]; then
@@ -273,8 +282,10 @@ if [[ -z "$vault" ]]; then
 fi
 if [[ -z "$vault" ]]; then
   candidate="$PWD"
+  typeset -a root_docs
   while [[ "$candidate" != / ]]; do
-    if [[ -d "$candidate/.state/erl/works" && ( -d "$candidate/notes" || -n "$(find "$candidate" -maxdepth 1 -name '*.adoc' -print -quit 2>/dev/null)" ) ]]; then
+    root_docs=("$candidate"/*.adoc(N))
+    if [[ -d "$candidate/.state/erl/works" && ( -d "$candidate/notes" || ${#root_docs} -gt 0 ) ]]; then
       vault="$candidate"
       break
     fi
@@ -353,8 +364,9 @@ for source_file in "$works_root"/*/sources/*.json(N); do
   [[ "${source_file:t:r}" == "$source_id" ]] || add_diag error ERL-STATE-012 "Source filename must equal SOURCE_ID" path "$source_file" source_id "$source_id"
   [[ -n "${work_ids[$work_id]-}" ]] || add_diag error ERL-CHECK-001 "Source references unknown WORK_ID" path "$source_file" work_id "$work_id"
   [[ "$fingerprint" =~ $ERL_FINGERPRINT_RE ]] || add_diag error ERL-CHECK-012 "Source fingerprint must be sha256 plus 64 lowercase hex digits" path "$source_file" source_id "$source_id"
-  jq -cr '.chapters[]? | [(.chapter_uuid // ""),(.chapter_locator // ""),((.source_order // "")|tostring)] | @tsv' "$source_file" 2>/dev/null | while IFS=$'\t' read -r chapter_uuid locator source_order; do
-    [[ -n "$chapter_uuid" && -n "$locator" && -n "$source_order" ]] || add_diag error ERL-CHECK-011 "Chapter record lacks UUID, locator, or source order" path "$source_file" source_id "$source_id"
+  jq -cr '.chapters[]? | [(.chapter_uuid // "__MISSING__"),(.source_id // "__MISSING__"),(.chapter_locator // "__MISSING__"),((.source_order // "__MISSING__")|tostring)] | @tsv' "$source_file" 2>/dev/null | while IFS=$'\t' read -r chapter_uuid chapter_source_id locator source_order; do
+    [[ "$chapter_uuid" != __MISSING__ && "$chapter_source_id" != __MISSING__ && "$locator" != __MISSING__ && "$source_order" != __MISSING__ ]] || add_diag error ERL-WORKSTATE-004 "Chapter record lacks UUID, SOURCE_ID, locator, or source order" path "$source_file" source_id "$source_id"
+    [[ "$chapter_source_id" == __MISSING__ || "$chapter_source_id" == "$source_id" ]] || add_diag error ERL-WORKSTATE-004 "Chapter record SOURCE_ID does not match parent source" path "$source_file" source_id "$source_id" chapter_source_id "$chapter_source_id" chapter_uuid "$chapter_uuid"
     print -r -- "$work_id"$'\t'"$source_id"$'\t'"$locator"$'\t'"$chapter_uuid" >> "$tmp_dir/chapters.tsv"
     record_reference "$chapter_uuid" chapter "" "$chapter_uuid" "$work_id"
   done
@@ -417,6 +429,15 @@ for work_file in "$works_root"/*/work.json(N); do
   fi
 done
 
+# Every retained generation file must be registered by its owning manifest.
+while IFS=$'\t' read -r generation_uuid generation_file work_id; do
+  [[ -n "$generation_uuid" ]] || continue
+  work_file="${work_ids[$work_id]-}"
+  if [[ -z "$work_file" ]] || ! jq -e --arg generation "$generation_uuid" 'any((.generation_uuids // .generations // [])[]?; (if type=="object" then (.generation_uuid // .book_topic_uuid) else . end)==$generation)' "$work_file" >/dev/null 2>&1; then
+    add_diag error ERL-BOOK-008 "Generation state is not registered by its owning work manifest" work_id "$work_id" generation_uuid "$generation_uuid" path "$generation_file"
+  fi
+done < "$generation_index_file"
+
 # Validate generation sequences, receipts, and recorded documents.
 for generation_file in "$works_root"/*/generations/*.json(N); do
   jq -e . "$generation_file" >/dev/null 2>&1 || continue
@@ -428,12 +449,21 @@ for generation_file in "$works_root"/*/generations/*.json(N); do
   sequence_tsv="$tmp_dir/sequence-$generation_uuid.tsv"
   jq -cr '.sequence[]? | [((.ordinal // "")|tostring),(.chapter_uuid // ""),(.role // ""),(.document_uuid // "")] | @tsv' "$generation_file" 2>/dev/null > "$sequence_tsv"
   previous=0
+  previous_source_order=0
   while IFS=$'\t' read -r ordinal chapter_uuid role document_uuid; do
     [[ -n "$ordinal$chapter_uuid$role$document_uuid" ]] || continue
     if [[ "$ordinal" != <-> || "$ordinal" -le "$previous" ]]; then
       add_diag error ERL-CHECK-013 "Sequence ordinals must be unique and strictly increasing" generation_uuid "$generation_uuid" document_uuid "$document_uuid"
     fi
     previous="${ordinal:-0}"
+    chapter_source_order="$(chapter_source_order "$generation_file" "$chapter_uuid" 2>/dev/null)" || chapter_source_order=""
+    if [[ -z "$chapter_source_order" ]]; then
+      add_diag error ERL-CHECK-014 "Sequence Chapter is not registered in generation source" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid"
+    elif (( chapter_source_order < previous_source_order )); then
+      add_diag error ERL-SEQ-004 "Sequence Chapter order moves backwards in source" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid" source_order "$chapter_source_order"
+    else
+      previous_source_order="$chapter_source_order"
+    fi
     [[ "$role" == vocabulary || "$role" == occurrence ]] || add_diag error ERL-CHECK-002 "Sequence role must be vocabulary or occurrence" generation_uuid "$generation_uuid" document_uuid "$document_uuid" role "$role"
     record_reference "$document_uuid" "$role" "$generation_uuid" "$chapter_uuid" "$work_id"
     file="$(doc_path "$document_uuid")" || file=""
@@ -441,6 +471,16 @@ for generation_file in "$works_root"/*/generations/*.json(N); do
       add_diag warning ERL-CHECK-015 "Deprecated document occurs in active generation sequence; closure or reconciliation is required" generation_uuid "$generation_uuid" document_uuid "$document_uuid"
     fi
   done < "$sequence_tsv"
+
+  # Members are persistent relationships even when not duplicated in sequence.
+  jq -cr '.members[]? | [(.document_uuid // ""),(.role // "")] | @tsv' "$generation_file" 2>/dev/null | while IFS=$'\t' read -r document_uuid role; do
+    if [[ -z "$document_uuid" || -z "$role" ]]; then
+      add_diag error ERL-CHECK-001 "Generation member lacks document UUID or role" generation_uuid "$generation_uuid"
+      continue
+    fi
+    [[ "$role" == vocabulary || "$role" == occurrence ]] || add_diag error ERL-CHECK-002 "Member role must be vocabulary or occurrence" generation_uuid "$generation_uuid" document_uuid "$document_uuid" role "$role"
+    record_reference "$document_uuid" "$role" "$generation_uuid" "" "$work_id"
+  done
 
   jq -r '.ingestion_receipts[]? | select(.status=="completed") | .extraction_id // empty' "$generation_file" 2>/dev/null >> "$tmp_dir/receipts.txt"
 done
@@ -493,6 +533,10 @@ for tx_file in "$transactions_root"/*/transaction.json(N) "$transactions_root"/*
   if [[ "$phase" != committed && "$phase" != rolled_back && "$phase" != rolled-back ]]; then
     add_diag warning ERL-CHECK-018 "Unfinished transaction requires recovery before Reduce" path "$tx_file" transaction_phase "$phase"
   elif [[ "$phase" == committed ]]; then
+    operation="$(json_value "$tx_file" '.operation')"
+    if [[ "$operation" == erl-book-reduce && ! -f "${tx_file:h}/result.json" ]]; then
+      add_diag error ERL-CHECK-025 "Committed Book Reduce lacks compact result artifact" path "$tx_file"
+    fi
     for closed_generation in "${(@f)$(jq -r '(.closed_generations // .affected_generations // [])[]?' "$tx_file" 2>/dev/null)}"; do
       [[ -n "$closed_generation" ]] || continue
       if [[ -n "${generation_ids[$closed_generation]-}" ]] || grep -lF -- "$closed_generation" "$works_root"/*/work.json(N) >/dev/null 2>&1; then

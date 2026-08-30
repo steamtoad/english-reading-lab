@@ -103,40 +103,103 @@ for generation in "${(@k)closure}"; do
 done
 targets_json="$(printf '%s\n' "${targets_rows[@]}" | jq -s 'unique_by(.uuid)|sort_by(.uuid)')"
 hashes_json="$(printf '%s\n' "${hash_rows[@]}" | jq -s 'unique_by(.path)|sort_by(.path)')"
-semantic_plan="$(jq -cn --argjson seeds "$seed_json" --argjson closure "$closure_json" --argjson additional "$additional_json" --argjson targets "$targets_json" --argjson hashes "$hashes_json" --argjson include "$include_dependencies" '{seed_generations:$seeds,closure_generations:$closure,additional_generations:$additional,targets:$targets,preflight_hashes:$hashes,include_dependencies:$include}')"
+
+# Scan every active Vault document for inbound links to mutation targets. Known
+# Occurrence -> Vocabulary relations are hard dependencies handled by closure;
+# all other inbound links are explicitly reported as soft references.
+soft_rows=()
+for source_doc in "$vault/notes"/*.adoc(N) "$vault"/*.adoc(N); do
+  erl_doc_deprecated "$source_doc" && continue
+  source_uuid="${source_doc:t:r}"
+  for target_uuid in "${(@k)target_role}"; do
+    grep -qF -- "link:$target_uuid.adoc[" "$source_doc" || continue
+    known_hard=0
+    if [[ "${target_role[$target_uuid]}" == vocabulary ]]; then
+      for candidate_generation_file in "$vault/.state/erl/works"/*/generations/*.json(N); do
+        if jq -e --arg source "$source_uuid" --arg target "$target_uuid" 'any(.sequence[]?; .document_uuid==$source and .role=="occurrence" and .vocabulary_uuid==$target)' "$candidate_generation_file" >/dev/null; then
+          known_hard=1; break
+        fi
+      done
+    fi
+    (( known_hard )) || soft_rows+=("$(jq -cn --arg source_uuid "$source_uuid" --arg target_uuid "$target_uuid" '{source_uuid:$source_uuid,target_uuid:$target_uuid,classification:"soft"}')")
+  done
+done
+if (( ${#soft_rows} )); then
+  soft_references_json="$(printf '%s\n' "${soft_rows[@]}" | jq -s 'unique_by(.source_uuid+"|"+.target_uuid)|sort_by(.source_uuid,.target_uuid)')"
+else
+  soft_references_json='[]'
+fi
+
+mutation_paths=("${(@f)$(jq -r '.[].path' <<< "$hashes_json")}")
+git_preflight="$(erl_git_preflight "$vault" "${mutation_paths[@]}")" || erl_fail 50 error IO_ERROR "Cannot evaluate Git/worktree policy"
+semantic_plan="$(jq -cn --argjson seeds "$seed_json" --argjson closure "$closure_json" --argjson additional "$additional_json" --argjson targets "$targets_json" --argjson hashes "$hashes_json" --argjson soft "$soft_references_json" --argjson git "$git_preflight" --argjson include "$include_dependencies" '{seed_generations:$seeds,closure_generations:$closure,additional_generations:$additional,targets:$targets,soft_references:$soft,git_preflight:$git,preflight_hashes:$hashes,include_dependencies:$include}')"
 calculated_fingerprint="$(print -rn -- "$semantic_plan" | jq -cS . | erl_sha256_stdin)"
 data="$(jq -cn --argjson plan "$semantic_plan" --arg fingerprint "$calculated_fingerprint" '$plan + {plan_fingerprint:$fingerprint}')"
 additional_count="$(jq length <<< "$additional_json")"
 if [[ "$mode" == dry-run ]]; then
-  if (( additional_count > 0 && ! include_dependencies )); then erl_emit warning DEPENDENCIES_REQUIRED false "$data" '[]' 0; else erl_emit ok OK false "$data" '[]' 0; fi
+  if [[ "$(jq -r .clean <<< "$git_preflight")" != true ]]; then erl_emit warning WORKTREE_DIRTY false "$data" '[]' 0
+  elif (( additional_count > 0 && ! include_dependencies )); then erl_emit warning DEPENDENCIES_REQUIRED false "$data" '[]' 0
+  else erl_emit ok OK false "$data" '[]' 0; fi
 fi
 [[ "$plan_fingerprint" == "$calculated_fingerprint" ]] || erl_fail 30 error STATE_CONFLICT "Plan fingerprint is stale or does not match the exact semantic plan" "$data"
+[[ "$(jq -r .clean <<< "$git_preflight")" == true ]] || erl_fail 40 blocked WORKTREE_DIRTY "Git/worktree policy rejects dirty mutation targets" "$data"
 (( additional_count == 0 || include_dependencies )) || erl_fail 40 blocked DEPENDENCIES_REQUIRED "Dependency closure exceeds seed generations; rerun with --include-dependencies" "$data"
 
 lock="$vault/.state/erl/locks/book-reduce.lock"; erl_lock_acquire "$lock"
 txid="$(erl_uuid_v4)" || erl_fail 50 error IO_ERROR "Cannot generate TXID"; tx_dir="$vault/.state/erl/transactions/$txid"; mkdir -p "$tx_dir/backups/documents" "$tx_dir/backups/generations" "$tx_dir/backups/works"
 print -r -- "$semantic_plan" > "$tx_dir/plan.json"
 jq -cn --arg txid "$txid" --arg fingerprint "$calculated_fingerprint" --argjson closed "$closure_json" --argjson targets "$targets_json" '{schema_version:1,txid:$txid,operation:"erl-book-reduce",phase:"applying",plan_fingerprint:$fingerprint,closed_generations:$closed,targets:$targets}' | erl_atomic_write "$tx_dir/transaction.json"
+print -r -- '[]' > "$tx_dir/applied-hashes.json"
 for uuid in "${(@k)target_role}"; do file="$(erl_doc_path "$vault" "$uuid")"; cp "$file" "$tx_dir/backups/documents/$uuid.adoc"; done
 for generation in "${(@k)closure}"; do
   generation_file="$(erl_find_generation_file "$vault" "$generation")"; cp "$generation_file" "$tx_dir/backups/generations/$generation.json"
   work_id="$(jq -r .work_id "$generation_file")"; work_file="$(erl_find_work_file "$vault" "$work_id")"; [[ -f "$tx_dir/backups/works/$work_id.json" ]] || cp "$work_file" "$tx_dir/backups/works/$work_id.json"
 done
 rollback_reduce() {
-  local file uuid generation work_id backup
-  for backup in "$tx_dir/backups/documents"/*.adoc(N); do uuid="${backup:t:r}"; file="$(erl_doc_path "$vault" "$uuid" 2>/dev/null || print "$vault/notes/$uuid.adoc")"; cp "$backup" "$file"; done
-  for backup in "$tx_dir/backups/generations"/*.json(N); do generation="${backup:t:r}"; generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null || true)"; [[ -n "$generation_file" ]] || { work_id="$(jq -r .work_id "$backup")"; work_file="$(erl_find_work_file "$vault" "$work_id")"; generation_file="${work_file:h}/generations/$generation.json"; }; mkdir -p "${generation_file:h}"; cp "$backup" "$generation_file"; done
-  for backup in "$tx_dir/backups/works"/*.json(N); do work_id="${backup:t:r}"; work_file="$(erl_find_work_file "$vault" "$work_id" 2>/dev/null || true)"; [[ -n "$work_file" ]] && cp "$backup" "$work_file"; done
+  local file uuid generation work_id backup blocked=0
+  restore_if_ours() {
+    local backup="$1" file="$2" original expected current
+    original="$(erl_sha256_file "$backup")"
+    expected="$(jq -r --arg path "$file" '[.[]|select(.path==$path)][-1].hash // empty' "$tx_dir/applied-hashes.json")"
+    if [[ -f "$file" ]]; then current="$(erl_sha256_file "$file")"; else current=missing; fi
+    [[ "$current" == "$original" ]] && return 0
+    if [[ -n "$expected" && "$current" == "$expected" ]]; then
+      mkdir -p -- "${file:h}"; cp -- "$backup" "$file"; return $?
+    fi
+    blocked=1
+    return 1
+  }
+  for backup in "$tx_dir/backups/documents"/*.adoc(N); do uuid="${backup:t:r}"; file="$(erl_doc_path "$vault" "$uuid" 2>/dev/null || print "$vault/notes/$uuid.adoc")"; restore_if_ours "$backup" "$file" || true; done
+  for backup in "$tx_dir/backups/generations"/*.json(N); do generation="${backup:t:r}"; work_id="$(jq -r .work_id "$backup")"; work_file="$(erl_find_work_file "$vault" "$work_id" 2>/dev/null || true)"; generation_file="${work_file:h}/generations/$generation.json"; restore_if_ours "$backup" "$generation_file" || true; done
+  for backup in "$tx_dir/backups/works"/*.json(N); do work_id="${backup:t:r}"; work_file="$(erl_find_work_file "$vault" "$work_id" 2>/dev/null || true)"; [[ -n "$work_file" ]] && restore_if_ours "$backup" "$work_file" || true; done
+  if (( blocked )); then
+    jq '.phase="rollback_blocked"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+    return 1
+  fi
   jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
 }
-for uuid in "${(@k)target_role}"; do erl_deprecate_document "$(erl_doc_path "$vault" "$uuid")" || { rollback_reduce; erl_fail 60 error TRANSACTION_FAILED "Cannot deprecate target: $uuid"; }; done
+rollback_or_block() {
+  rollback_reduce || erl_fail 60 blocked RECOVERY_CONFLICT "Rollback refused to overwrite files changed unexpectedly after transaction start"
+}
+record_applied_hash() {
+  local target_path="$1" hash
+  if [[ -f "$target_path" ]]; then hash="$(erl_sha256_file "$target_path")"; else hash=missing; fi
+  jq --arg path "$target_path" --arg hash "$hash" '. + [{path:$path,hash:$hash}]' "$tx_dir/applied-hashes.json" | erl_atomic_write "$tx_dir/applied-hashes.json"
+}
+for uuid in "${(@k)target_role}"; do
+  file="$(erl_doc_path "$vault" "$uuid")"
+  erl_deprecate_document "$file" || { rollback_or_block; erl_fail 60 error TRANSACTION_FAILED "Cannot deprecate target: $uuid"; }
+  record_applied_hash "$file" || { rollback_or_block; erl_fail 60 error TRANSACTION_FAILED "Cannot record applied document hash: $uuid"; }
+done
 for generation in "${(@k)closure}"; do
   generation_file="$(erl_find_generation_file "$vault" "$generation")"; work_id="$(jq -r .work_id "$generation_file")"; work_file="$(erl_find_work_file "$vault" "$work_id")"
-  jq --arg generation "$generation" '.generation_uuids=((.generation_uuids//[])|map(select(.!=$generation))) | if (.active_generation_uuid//"")==$generation then .active_generation_uuid=null else . end' "$work_file" | erl_atomic_write "$work_file" || { rollback_reduce; erl_fail 60 error TRANSACTION_FAILED "Cannot update work manifest"; }
+  jq --arg generation "$generation" '.generation_uuids=((.generation_uuids//[])|map(select(.!=$generation))) | if (.active_generation_uuid//"")==$generation then .active_generation_uuid=null else . end' "$work_file" | erl_atomic_write "$work_file" || { rollback_or_block; erl_fail 60 error TRANSACTION_FAILED "Cannot update work manifest"; }
+  record_applied_hash "$work_file" || { rollback_or_block; erl_fail 60 error TRANSACTION_FAILED "Cannot record applied work hash"; }
   rm -f -- "$generation_file"
+  record_applied_hash "$generation_file" || { rollback_or_block; erl_fail 60 error TRANSACTION_FAILED "Cannot record removed generation"; }
 done
 set +e; postcheck="$(erl_run_check "$vault")"; postcheck_rc=$?; set -e
-if (( postcheck_rc != 0 )); then rollback_reduce; erl_fail 60 error TRANSACTION_FAILED "Reduce post-validation failed and transaction was rolled back" "$(jq -cn --argjson check "$postcheck" '{check:$check}')"; fi
-jq '.phase="committed"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json"; cp "$tx_dir/transaction.json" "$tx_dir/result.json"; rm -rf "$tx_dir/backups"
+if (( postcheck_rc != 0 )); then rollback_or_block; erl_fail 60 error TRANSACTION_FAILED "Reduce post-validation failed and transaction was rolled back" "$(jq -cn --argjson check "$postcheck" '{check:$check}')"; fi
+jq '.phase="committed"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json"; cp "$tx_dir/transaction.json" "$tx_dir/result.json"; rm -rf "$tx_dir/backups"; rm -f -- "$tx_dir/applied-hashes.json"
 data="$(jq -cn --arg txid "$txid" --arg fingerprint "$calculated_fingerprint" --argjson closed "$closure_json" --argjson targets "$targets_json" '{txid:$txid,plan_fingerprint:$fingerprint,closed_generations:$closed,targets:$targets,receipt_status:"committed"}')"
 erl_emit ok OK true "$data" '[]' 0

@@ -4,7 +4,11 @@
 
 Этот repository содержит English Reading Lab (ERL) plugin, его skills, scripts, tests, fixtures и документацию.
 
-Нормативный источник требований: `.scripts/erl/docs/requirements.md`.
+Нормативный baseline требований: `openspec/specs/*/spec.md`.
+
+`.scripts/erl/docs/requirements.md` сохраняется как legacy traceability source.
+При расхождении implementation сверяется с OpenSpec; изменение baseline
+выполняется через OpenSpec workflow и `openspec validate --all`.
 
 Главная архитектурная граница:
 

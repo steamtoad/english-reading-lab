@@ -42,6 +42,7 @@ erl_usage_error() { erl_fail 2 error INVALID_INPUT "$1"; }
 
 erl_resolve_vault() {
   local explicit="${1:-}" candidate
+  local -a root_docs
   if [[ -n "$explicit" ]]; then
     candidate="$explicit"
   elif [[ -n "${ERL_VAULT:-}" ]]; then
@@ -49,7 +50,8 @@ erl_resolve_vault() {
   else
     candidate="$PWD"
     while [[ "$candidate" != / ]]; do
-      if [[ -d "$candidate/notes" || -n "$(find "$candidate" -maxdepth 1 -name '*.adoc' -print -quit 2>/dev/null)" ]]; then
+      root_docs=("$candidate"/*.adoc(N))
+      if [[ -d "$candidate/notes" || ${#root_docs} -gt 0 ]]; then
         break
       fi
       candidate="${candidate:h}"
@@ -120,6 +122,26 @@ erl_find_source_file() {
     return 0
   done
   return 1
+}
+
+erl_chapter_source_order() {
+  local vault="$1" generation_file="$2" chapter_uuid="$3" source_id source_file
+  source_id="$(jq -r '.source_id // empty' "$generation_file")"
+  source_file="$(erl_find_source_file "$vault" "$source_id" 2>/dev/null)" || return 1
+  jq -er --arg chapter "$chapter_uuid" '.chapters[]? | select(.chapter_uuid==$chapter) | .source_order' "$source_file" 2>/dev/null | head -n 1
+}
+
+# Applicable policy: when Vault is in Git, mutation targets must have no
+# tracked or untracked worktree changes. A non-Git Vault is explicitly allowed.
+erl_git_preflight() {
+  local vault="$1"; shift
+  local git_status
+  if ! command -v git >/dev/null 2>&1 || ! git -C "$vault" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    jq -cn '{applicable:false,status:"not-a-git-worktree",clean:true,changes:[]}'
+    return 0
+  fi
+  git_status="$(git -C "$vault" status --porcelain -- "$@" 2>/dev/null)" || return 1
+  jq -cn --arg status "$git_status" '{applicable:true,status:(if $status=="" then "clean" else "dirty" end),clean:($status==""),changes:($status|split("\n")|map(select(length>0)))}'
 }
 
 erl_doc_path() {

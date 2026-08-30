@@ -114,6 +114,7 @@ write_state() {
   \"source_fingerprint\": \"sha256:$(printf 'a%.0s' {1..64})\",
   \"chapters\": [{
     \"chapter_uuid\": \"$chapter\",
+    \"source_id\": \"$source_id\",
     \"chapter_locator\": \"OEBPS/chapter-01.xhtml\",
     \"source_order\": 1
   }]
@@ -123,6 +124,7 @@ write_state() {
   \"schema_version\": 1,
   \"generation_uuid\": \"$generation\",
   \"work_id\": \"$work_id\",
+  \"source_id\": \"$source_id\",
   \"policy_identity\": \"sha256:$(printf 'b%.0s' {1..64})\",
   \"sequence\": [
     {\"ordinal\":1,\"chapter_uuid\":\"$chapter\",\"role\":\"vocabulary\",\"document_uuid\":\"$vocabulary\"},
@@ -162,6 +164,47 @@ assert_json 0 '.status=="ok" and .code=="OK" and .changed==false and .data.count
 assert_json 0 '.status=="ok" and .data.scope.kind=="generation"' --generation "$generation"
 assert_json 20 '.status=="error" and .code=="NOT_FOUND"' --work 99999999-9999-4999-8999-999999999999
 
+# Chapter resolution records carry and match their parent SOURCE_ID.
+cp "$fixture/.state/erl/works/example/sources/$source_id.json" "$fixture/source.saved"
+jq 'del(.chapters[0].source_id)' "$fixture/source.saved" > "$fixture/.state/erl/works/example/sources/$source_id.json"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-WORKSTATE-004")'
+mv "$fixture/source.saved" "$fixture/.state/erl/works/example/sources/$source_id.json"
+
+# Members are validated even when a relationship is absent from sequence.
+cp "$fixture/.state/erl/works/example/generations/$generation.json" "$fixture/generation.saved"
+jq '.members=[{document_uuid:"99999999-9999-1999-8999-999999999999",role:"vocabulary",reducible:true}]' "$fixture/generation.saved" > "$fixture/.state/erl/works/example/generations/$generation.json"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-001" and .document_uuid=="99999999-9999-1999-8999-999999999999")'
+mv "$fixture/generation.saved" "$fixture/.state/erl/works/example/generations/$generation.json"
+
+# A retained generation file must have the reverse manifest reference.
+cp "$fixture/.state/erl/works/example/work.json" "$fixture/work.saved"
+jq '.generation_uuids=[] | .active_generation_uuid=null' "$fixture/work.saved" > "$fixture/.state/erl/works/example/work.json"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-BOOK-008")'
+mv "$fixture/work.saved" "$fixture/.state/erl/works/example/work.json"
+
+# Sequence ordinals alone are insufficient: Chapter source order may not move backwards.
+chapter_earlier="77777777-7777-1777-8777-777777777777"
+cp "$fixture/notes/$chapter.adoc" "$fixture/notes/$chapter_earlier.adoc"
+sed -i.bak "s/$chapter/$chapter_earlier/g" "$fixture/notes/$chapter_earlier.adoc"
+rm -f -- "$fixture/notes/$chapter_earlier.adoc.bak"
+cp "$fixture/.state/erl/works/example/sources/$source_id.json" "$fixture/source-order.saved"
+cp "$fixture/.state/erl/works/example/generations/$generation.json" "$fixture/generation-order.saved"
+jq --arg chapter "$chapter_earlier" --arg source "$source_id" '.chapters[0].source_order=2 | .chapters += [{chapter_uuid:$chapter,source_id:$source,chapter_locator:"OEBPS/earlier.xhtml",source_order:1}]' "$fixture/source-order.saved" > "$fixture/.state/erl/works/example/sources/$source_id.json"
+jq --arg chapter "$chapter_earlier" '.sequence[1].chapter_uuid=$chapter' "$fixture/generation-order.saved" > "$fixture/.state/erl/works/example/generations/$generation.json"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-SEQ-004")'
+mv "$fixture/source-order.saved" "$fixture/.state/erl/works/example/sources/$source_id.json"
+mv "$fixture/generation-order.saved" "$fixture/.state/erl/works/example/generations/$generation.json"
+rm -f -- "$fixture/notes/$chapter_earlier.adoc"
+
+# Committed Book Reduce requires both transaction manifest and compact result.
+reduce_tx="$fixture/.state/erl/transactions/66666666-6666-4666-8666-666666666666"
+mkdir -p "$reduce_tx"
+print -r -- '{"schema_version":1,"operation":"erl-book-reduce","phase":"committed","closed_generations":[]}' > "$reduce_tx/transaction.json"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-025")'
+cp "$reduce_tx/transaction.json" "$reduce_tx/result.json"
+assert_json 0 '.status=="ok" and .data.counts.errors==0'
+rm -rf -- "$reduce_tx"
+
 before_hash="$(find "$fixture" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256)"
 $checker --vault "$fixture" --json >/dev/null
 after_hash="$(find "$fixture" -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256)"
@@ -190,6 +233,7 @@ print -r -- "{
   \"schema_version\": 1,
   \"generation_uuid\": \"$generation_two\",
   \"work_id\": \"$work_id\",
+  \"source_id\": \"$source_id\",
   \"policy_identity\": \"sha256:$(printf 'c%.0s' {1..64})\",
   \"sequence\": [],
   \"ingestion_receipts\": []

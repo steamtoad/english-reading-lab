@@ -38,6 +38,9 @@ CLI не source'ит `.scripts/zettelkasten/`.
 ├── erl-book-ingest.zsh
 ├── erl-chapter-export.zsh
 ├── erl-extraction-stage.zsh
+├── erl-transaction-recover.zsh
+├── erl-state-migrate.zsh
+├── erl-work-rename.zsh
 ├── erl-vocabulary-ingest.zsh
 ├── erl-chapter-vocabulary-ingest.zsh
 ├── erl-book-reduce.zsh
@@ -45,11 +48,10 @@ CLI не source'ит `.scripts/zettelkasten/`.
 └── erl-check.zsh
 ```
 
-Дополнительные recovery commands можно выделить после стабилизации transaction contract:
+Дополнительные recovery commands можно выделить после дальнейшей стабилизации transaction contract:
 
 ```text
 erl-transaction-status.zsh
-erl-transaction-recover.zsh
 erl-transaction-rollback.zsh
 ```
 
@@ -1028,6 +1030,41 @@ Example:
   ]
 }
 ```
+
+---
+
+## `erl-work-rename.zsh`
+
+Explicit atomic migration для human-readable work slug:
+
+```bash
+erl-work-rename.zsh --vault "$VAULT" --work-id "$WORK_ID" \
+  --new-slug new-slug --dry-run --json
+erl-work-rename.zsh --vault "$VAULT" --work-id "$WORK_ID" \
+  --new-slug new-slug --apply --json
+```
+
+Операция выполняется под ERL lock, сохраняет `WORK_ID` и Vault UUID, обновляет
+`work_slug` и откатывает directory rename при ошибке validation.
+
+## `erl-state-migrate.zsh`
+
+Explicit atomic migration persistent work state к текущему OpenSpec baseline.
+Migration `chapter-source-id-v1` добавляет parent `SOURCE_ID` в legacy Chapter
+resolution records, создаёт transaction journal и выполняет post-validation.
+
+## `erl-transaction-recover.zsh`
+
+Explicit recovery незавершённой transaction:
+
+```bash
+erl-transaction-recover.zsh --vault "$VAULT" --txid "$TXID" --dry-run --json
+erl-transaction-recover.zsh --vault "$VAULT" --txid "$TXID" --apply --json
+```
+
+Для `erl-vocabulary-ingest` recovery либо завершает commit, если receipt уже
+записан, либо удаляет только неизменённый orphan document. При несовпадении
+recorded hashes операция блокируется с `RECOVERY_CONFLICT`.
 
 ---
 

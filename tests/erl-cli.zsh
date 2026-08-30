@@ -47,6 +47,15 @@ chapter="$(jq -r '.chapters[0].chapter_uuid' "$source_state[1]")"
 source_id="$(jq -r .source_id "$source_state[1]")"
 source_fingerprint="$(jq -r .source_fingerprint "$source_state[1]")"
 
+# Legacy Chapter records are migrated through an explicit atomic operation.
+cp "$source_state[1]" "$fixture/source-current.json"
+jq 'del(.chapters[].source_id)' "$fixture/source-current.json" > "$source_state[1]"
+"$erl/erl-state-migrate.zsh" --vault "$vault" --work-id "$work_id" --dry-run --json > "$fixture/migrate-dry.json"
+jq -e '.changed==false and .data.migration=="chapter-source-id-v1" and .data.chapter_records==1' "$fixture/migrate-dry.json" >/dev/null
+"$erl/erl-state-migrate.zsh" --vault "$vault" --work-id "$work_id" --apply --json > "$fixture/migrate.json"
+jq -e '.changed==true and .data.chapter_records==1' "$fixture/migrate.json" >/dev/null
+jq -e --arg source "$source_id" 'all(.chapters[]; .source_id==$source)' "$source_state[1]" >/dev/null
+
 "$erl/erl-chapter-export.zsh" --vault "$vault" --generation "$generation" --chapter "$chapter" --json > "$fixture/export.json"
 jq -e --arg chapter "$chapter" '.changed==false and .data.chapter_uuid==$chapter and (.data.content|contains("forlorn"))' "$fixture/export.json" >/dev/null
 
@@ -113,6 +122,22 @@ jq -e '.changed==false and .data.sequence_from==1 and .data.sequence_to==1' "$fi
 "$erl/erl-chapter-vocabulary-ingest.zsh" --vault "$vault" --extraction-id "$extraction" --apply --json > "$fixture/batch-repeat.json"
 jq -e '.code=="ALREADY_INGESTED" and .changed==false' "$fixture/batch-repeat.json" >/dev/null
 
+# Interrupted ingestion with a created-but-unrecorded document can be
+# deterministically rolled back without touching changed state.
+recovery_txid="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+recovery_dir="$vault/.state/erl/transactions/$recovery_txid"
+recovery_doc="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+mkdir -p "$recovery_dir/backups"
+cp "$vault/.state/erl/works/example-book/generations/$generation.json" "$recovery_dir/backups/generation.json"
+print -r -- '= interrupted memo' > "$vault/notes/$recovery_doc.adoc"
+recovery_generation_hash="$(shasum -a 256 "$vault/.state/erl/works/example-book/generations/$generation.json" | awk '{print "sha256:" $1}')"
+recovery_document_hash="$(shasum -a 256 "$vault/notes/$recovery_doc.adoc" | awk '{print "sha256:" $1}')"
+jq -n --arg txid "$recovery_txid" --arg generation "$generation" --arg generation_path "$vault/.state/erl/works/example-book/generations/$generation.json" --arg generation_hash "$recovery_generation_hash" --arg extraction "$(uuidgen | tr '[:upper:]' '[:lower:]')" --arg document_uuid "$recovery_doc" --arg document_path "$vault/notes/$recovery_doc.adoc" --arg document_hash "$recovery_document_hash" '{schema_version:1,txid:$txid,operation:"erl-vocabulary-ingest",phase:"document_created",generation_uuid:$generation,generation_path:$generation_path,generation_pre_hash:$generation_hash,extraction_id:$extraction,candidate_ordinal:1,document_uuid:$document_uuid,document_path:$document_path,document_hash:$document_hash}' > "$recovery_dir/transaction.json"
+"$erl/erl-transaction-recover.zsh" --vault "$vault" --txid "$recovery_txid" --dry-run --json | jq -e '.changed==false and .data.recovery_action=="rollback"' >/dev/null
+"$erl/erl-transaction-recover.zsh" --vault "$vault" --txid "$recovery_txid" --apply --json | jq -e '.changed==true and .data.recovery_action=="rollback"' >/dev/null
+[[ ! -e "$vault/notes/$recovery_doc.adoc" ]] || { print -ru2 -- 'FAIL: transaction recovery retained orphan document'; exit 1; }
+jq -e '.phase=="rolled_back"' "$recovery_dir/transaction.json" >/dev/null
+
 "$erl/erl-check.zsh" --vault "$vault" --work "$work_id" --json > "$fixture/check.json"
 jq -e '.status=="ok" and .data.counts.errors==0' "$fixture/check.json" >/dev/null
 
@@ -152,8 +177,33 @@ extraction_two="$(jq -r .data.extraction_id "$fixture/stage-two.json")"
 "$erl/erl-chapter-vocabulary-ingest.zsh" --vault "$vault" --extraction-id "$extraction_two" --apply --json > "$fixture/batch-two.json"
 jq -e '.data.created_occurrences==1 and .data.created_vocabulary==0' "$fixture/batch-two.json" >/dev/null
 
+# Generic active inbound links are classified as soft, and dirty mutation
+# targets are rejected by the applicable Git worktree policy.
+soft_source="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+print -r -- "= Reader note
+:date: 2026-08-30
+:keywords: memo
+:type: memo
+:author: test
+:description: Reader note
+:doclink: link:$soft_source.adoc[Reader note]
+:docfilename: $soft_source.adoc
+
+link:$generation.adoc[Book]
+" > "$vault/notes/$soft_source.adoc"
+git -C "$vault" init -q
+git -C "$vault" config user.name 'ERL Test'
+git -C "$vault" config user.email 'erl-test@example.invalid'
+git -C "$vault" add .
+git -C "$vault" commit -qm 'fixture baseline'
+cp "$vault/notes/$generation.adoc" "$fixture/generation-before-dirty.adoc"
+print -r -- '\nlocal edit' >> "$vault/notes/$generation.adoc"
+"$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --dry-run --json > "$fixture/reduce-dirty.json"
+jq -e '.status=="warning" and .code=="WORKTREE_DIRTY" and .data.git_preflight.clean==false' "$fixture/reduce-dirty.json" >/dev/null
+cp "$fixture/generation-before-dirty.adoc" "$vault/notes/$generation.adoc"
+
 "$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --dry-run --json > "$fixture/reduce-closure.json"
-jq -e --arg additional "$generation_two" '.status=="warning" and .code=="DEPENDENCIES_REQUIRED" and (.data.additional_generations|index($additional))!=null' "$fixture/reduce-closure.json" >/dev/null
+jq -e --arg additional "$generation_two" --arg source "$soft_source" --arg target "$generation" '.status=="warning" and .code=="DEPENDENCIES_REQUIRED" and (.data.additional_generations|index($additional))!=null and any(.data.soft_references[]; .source_uuid==$source and .target_uuid==$target and .classification=="soft")' "$fixture/reduce-closure.json" >/dev/null
 closure_fingerprint="$(jq -r .data.plan_fingerprint "$fixture/reduce-closure.json")"
 set +e
 "$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation" --plan-fingerprint "$closure_fingerprint" --apply --json > "$fixture/reduce-blocked.json"
@@ -182,6 +232,27 @@ grep -q '^:deprecated:$' "$vault/notes/$generation.adoc" || { print -ru2 -- 'FAI
 grep -q '^:deprecated:$' "$vault/notes/$chapter.adoc" && { print -ru2 -- 'FAIL: Reduce deprecated Chapter Note'; exit 1; }
 grep -q '^:deprecated:$' "$vault/notes/$chapter_two.adoc" && { print -ru2 -- 'FAIL: Reduce deprecated dependency Chapter Note'; exit 1; }
 "$erl/erl-check.zsh" --vault "$vault" --json | jq -e '.status=="ok" and .data.counts.errors==0' >/dev/null
+
+# A closed work may create a new semantic generation for the same source while
+# reusing SOURCE_ID and durable Chapter UUIDs.
+chapter_before="$(jq -r '.chapters[0].chapter_uuid' "$source_state[1]")"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work_id" --key-topic 'English Reading v2' --policy-file "$fixture/policy.json" --dry-run --json > "$fixture/book-regeneration-dry.json"
+jq -e --arg source_id "$source_id" '.changed==false and .data.reuses_source==true and .data.source_id==$source_id and .data.will_generate_source_id==false' "$fixture/book-regeneration-dry.json" >/dev/null
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work_id" --key-topic 'English Reading v2' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book-regeneration.json"
+generation_regenerated="$(jq -r .data.generation_uuid "$fixture/book-regeneration.json")"
+jq -e --arg source_id "$source_id" '.changed==true and .data.reused_source==true and .data.source_id==$source_id and .data.created.notes==0' "$fixture/book-regeneration.json" >/dev/null
+[[ "$(jq -r '.chapters[0].chapter_uuid' "$source_state[1]")" == "$chapter_before" ]] || { print -ru2 -- 'FAIL: same-source generation changed durable Chapter UUID'; exit 1; }
+[[ "$generation_regenerated" != "$generation" ]] || { print -ru2 -- 'FAIL: semantic regeneration reused Book Topic UUID'; exit 1; }
+"$erl/erl-check.zsh" --vault "$vault" --work "$work_id" --json | jq -e '.status=="ok" and .data.counts.errors==0' >/dev/null
+
+# Work slug migration changes only the path locator, under an explicit lock.
+"$erl/erl-work-rename.zsh" --vault "$vault" --work-id "$work_id" --new-slug 'example-book-renamed' --dry-run --json > "$fixture/rename-dry.json"
+jq -e '.changed==false and .data.old_slug=="example-book" and .data.new_slug=="example-book-renamed"' "$fixture/rename-dry.json" >/dev/null
+"$erl/erl-work-rename.zsh" --vault "$vault" --work-id "$work_id" --new-slug 'example-book-renamed' --apply --json > "$fixture/rename.json"
+jq -e '.changed==true and .data.work_id!=""' "$fixture/rename.json" >/dev/null
+[[ ! -e "$vault/.state/erl/works/example-book" && -f "$vault/.state/erl/works/example-book-renamed/work.json" ]] || { print -ru2 -- 'FAIL: work slug directory migration is incomplete'; exit 1; }
+jq -e --arg work_id "$work_id" '.work_id==$work_id and .work_slug=="example-book-renamed"' "$vault/.state/erl/works/example-book-renamed/work.json" >/dev/null
+"$erl/erl-check.zsh" --vault "$vault" --work "$work_id" --json | jq -e '.status=="ok" and .data.counts.errors==0' >/dev/null
 
 # Classic reconciliation is tested separately from ERL Book Reduce, including
 # the rule that successor adoption is never implicit.

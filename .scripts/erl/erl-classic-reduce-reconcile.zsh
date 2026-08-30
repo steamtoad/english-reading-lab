@@ -59,17 +59,22 @@ lock="$vault/.state/erl/locks/reconcile-$generation.lock"; erl_lock_acquire "$lo
 txid="$(erl_uuid_v4)" || erl_fail 50 error IO_ERROR "Cannot generate TXID"; tx_dir="$vault/.state/erl/transactions/$txid"; mkdir -p "$tx_dir/backups"
 cp "$work_file" "$tx_dir/backups/work.json"; cp "$generation_file" "$tx_dir/backups/generation.json"
 jq -cn --arg txid "$txid" --arg generation "$generation" '{schema_version:1,txid:$txid,operation:"erl-classic-reduce-reconcile",phase:"applying",generation_uuid:$generation}' | erl_atomic_write "$tx_dir/transaction.json"
-jq '.status="GENERATION_CLOSED_EXTERNALLY"' "$generation_file" | erl_atomic_write "$generation_file" || erl_fail 60 error TRANSACTION_FAILED "Cannot update generation status"
-jq --arg generation "$generation" 'if (.active_generation_uuid//"")==$generation then .active_generation_uuid=null else . end' "$work_file" | erl_atomic_write "$work_file" || { cp "$tx_dir/backups/generation.json" "$generation_file"; erl_fail 60 error TRANSACTION_FAILED "Cannot clear active generation pointer"; }
+rollback_reconcile() {
+  cp -- "$tx_dir/backups/work.json" "$work_file" 2>/dev/null || true
+  cp -- "$tx_dir/backups/generation.json" "$generation_file" 2>/dev/null || true
+  [[ -n "${successor_generation_file:-}" ]] && rm -f -- "$successor_generation_file"
+  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+}
+jq '.status="GENERATION_CLOSED_EXTERNALLY"' "$generation_file" | erl_atomic_write "$generation_file" || { rollback_reconcile; erl_fail 60 error TRANSACTION_FAILED "Cannot update generation status"; }
+jq --arg generation "$generation" 'if (.active_generation_uuid//"")==$generation then .active_generation_uuid=null else . end' "$work_file" | erl_atomic_write "$work_file" || { rollback_reconcile; erl_fail 60 error TRANSACTION_FAILED "Cannot clear active generation pointer"; }
 if [[ -n "$successor" ]]; then
   successor_generation_file="${generation_file:h}/$successor.json"
-  jq --arg successor "$successor" '.generation_uuid=$successor|.status="active"|.sequence=[]|.members=[]|.ingestion_receipts=[]' "$tx_dir/backups/generation.json" | erl_atomic_write "$successor_generation_file" || { cp "$tx_dir/backups/work.json" "$work_file"; cp "$tx_dir/backups/generation.json" "$generation_file"; erl_fail 60 error TRANSACTION_FAILED "Cannot create successor generation state"; }
-  jq --arg successor "$successor" '.generation_uuids=((.generation_uuids//[])+[$successor]|unique)|.active_generation_uuid=$successor' "$work_file" | erl_atomic_write "$work_file"
+  jq --arg successor "$successor" '.generation_uuid=$successor|.status="active"|.sequence=[]|.members=[]|.ingestion_receipts=[]' "$tx_dir/backups/generation.json" | erl_atomic_write "$successor_generation_file" || { rollback_reconcile; erl_fail 60 error TRANSACTION_FAILED "Cannot create successor generation state"; }
+  jq --arg successor "$successor" '.generation_uuids=((.generation_uuids//[])+[$successor]|unique)|.active_generation_uuid=$successor' "$work_file" | erl_atomic_write "$work_file" || { rollback_reconcile; erl_fail 60 error TRANSACTION_FAILED "Cannot register successor generation"; }
 fi
 set +e; check_output="$(erl_run_check "$vault" work "$work_id")"; check_rc=$?; set -e
 if (( check_rc != 0 )); then
-  cp "$tx_dir/backups/work.json" "$work_file"; cp "$tx_dir/backups/generation.json" "$generation_file"; [[ -n "$successor" ]] && rm -f "$successor_generation_file"
-  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+  rollback_reconcile
   erl_fail 60 error TRANSACTION_FAILED "Reconciliation validation failed and state was rolled back" "$(jq -cn --argjson check "$check_output" '{check:$check}')"
 fi
 jq --arg successor "$successor" '.phase="committed"|.adopted_successor=(if $successor=="" then null else $successor end)' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json"; rm -rf "$tx_dir/backups"
