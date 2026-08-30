@@ -28,6 +28,7 @@ done < <(find "$repo/.scripts/erl" "$repo/tests" -type f -name '*.zsh' | sort)
 
 "$repo/.scripts/erl/dev/erl-skills-check.zsh"
 "$repo/tests/erl-skills-check.zsh"
+"$repo/tests/erl-repository-boundary.zsh"
 "$repo/tests/erl-check.zsh"
 "$repo/tests/erl-cli.zsh"
 "$repo/tests/erl-agent-routing.zsh"
