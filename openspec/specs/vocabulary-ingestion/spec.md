@@ -1,0 +1,103 @@
+# vocabulary-ingestion Specification
+
+## Purpose
+
+Определить semantic vocabulary ingestion contract English Reading Lab: ingestion одного Candidate и Chapter-level orchestration, active Vocabulary lookup, создание Vocabulary или Occurrence через canonical constructors, согласованное обновление persistent work state и reading sequence, recoverability и idempotency ingestion.
+
+## Requirements
+
+### Requirement: ERL-ING-001 — Single Candidate ingestion uses erl-vocabulary-ingest
+
+Semantic ingestion одного Candidate MUST выполняться `erl-vocabulary-ingest`.
+
+#### Scenario: Candidate is ingested semantically
+
+- **WHEN** ERL выполняет semantic ingestion одного Candidate
+- **THEN** ingestion SHALL выполняться `erl-vocabulary-ingest`
+
+### Requirement: ERL-ING-002 — Chapter-level ingestion uses erl-chapter-vocabulary-ingest
+
+Chapter-level orchestration MUST выполняться `erl-chapter-vocabulary-ingest`.
+
+#### Scenario: Chapter vocabulary ingestion is orchestrated
+
+- **WHEN** ERL выполняет Chapter-level vocabulary ingestion
+- **THEN** orchestration SHALL выполняться `erl-chapter-vocabulary-ingest`
+
+### Requirement: ERL-ING-003 — Ingestion looks up only active Vocabulary records
+
+Ingestion MUST нормализовать lexical identity и выполнять lookup только среди active Vocabulary records.
+
+#### Scenario: Candidate lexical identity is resolved
+
+- **WHEN** ERL выполняет ingestion Candidate
+- **THEN** lexical identity SHALL быть нормализована
+- **AND** lookup SHALL выполняться только среди active Vocabulary records
+
+### Requirement: ERL-ING-004 — Missing active Vocabulary creates Vocabulary Memo
+
+Если active canonical Vocabulary не найден, ERL MUST создать Vocabulary Memo.
+
+#### Scenario: Active canonical Vocabulary does not exist
+
+- **GIVEN** active canonical Vocabulary для нормализованной lexical identity не найден
+- **WHEN** ERL выполняет ingestion Candidate
+- **THEN** ERL SHALL создать Vocabulary Memo
+
+### Requirement: ERL-ING-005 — Existing active Vocabulary creates Occurrence Memo
+
+Если active canonical Vocabulary найден, ERL MUST создать Occurrence Memo.
+
+#### Scenario: Active canonical Vocabulary exists
+
+- **GIVEN** active canonical Vocabulary для нормализованной lexical identity найден
+- **WHEN** ERL выполняет ingestion Candidate
+- **THEN** ERL SHALL создать Occurrence Memo
+
+### Requirement: ERL-ING-006 — Vault documents use canonical object constructors
+
+Vault document MUST создаваться только через canonical object constructor.
+
+#### Scenario: Ingestion creates a Vault document
+
+- **WHEN** vocabulary ingestion создаёт Vault document
+- **THEN** document SHALL создаваться через canonical object constructor
+- **AND** SHALL NOT создаваться обходным механизмом
+
+### Requirement: ERL-ING-007 — Successful document creation updates work state and reading sequence
+
+После успешного создания document ERL MUST обновить persistent work state и reading sequence.
+
+#### Scenario: Ingestion document is created successfully
+
+- **GIVEN** ingestion document успешно создан
+- **WHEN** ERL завершает ingestion operation
+- **THEN** persistent work state SHALL быть обновлён
+- **AND** reading sequence SHALL быть обновлена
+
+### Requirement: ERL-ING-008 — Document creation and work-state update are recoverable
+
+Операция document creation + work-state update MUST быть recoverable.
+
+Состояние «document создан, work state не обновлён» MUST обнаруживаться `erl-check` или recovery mechanism.
+
+#### Scenario: Document exists but work state was not updated
+
+- **GIVEN** ingestion document создан
+- **AND** соответствующий work state не обновлён
+- **WHEN** ERL выполняет validation или recovery
+- **THEN** inconsistent state SHALL быть обнаружен `erl-check` или recovery mechanism
+- **AND** ingestion operation SHALL оставаться recoverable
+
+### Requirement: ERL-ING-009 — EXTRACTION_ID ingestion is idempotent by ingestion receipt
+
+Ingestion одного `EXTRACTION_ID` MUST быть идемпотентна относительно ingestion receipt.
+
+Повторный запуск MUST NOT молча создавать второй набор документов.
+
+#### Scenario: Previously ingested EXTRACTION_ID is ingested again
+
+- **GIVEN** ingestion receipt уже существует для `EXTRACTION_ID`
+- **WHEN** ingestion того же `EXTRACTION_ID` запускается повторно
+- **THEN** ERL SHALL соблюдать idempotency относительно ingestion receipt
+- **AND** SHALL NOT молча создавать второй набор документов
