@@ -32,12 +32,15 @@ if [[ "$input" == - ]]; then tmp_input="$(mktemp "${TMPDIR:-/tmp}/erl-stage.XXXX
 erl_candidate_payload_validate "$input" || erl_fail 10 error VALIDATION_FAILED "Candidate payload does not satisfy vocabulary-candidate-v1"
 vault="$(erl_resolve_vault "$vault_arg")"
 generation="$(jq -r .generation_uuid "$input")"; chapter="$(jq -r .chapter_uuid "$input")"; policy_identity="$(jq -r .policy_identity "$input")"
+input_source_id="$(jq -r .source_identity.source_id "$input")"; input_source_fingerprint="$(jq -r .source_identity.source_fingerprint "$input")"
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"
 [[ "$(jq -r '.status // "active"' "$generation_file")" == active ]] || erl_fail 40 blocked GENERATION_CLOSED_EXTERNALLY "Generation is not active"
 [[ "$(jq -r '.policy.identity // .policy_identity // empty' "$generation_file")" == "$policy_identity" ]] || erl_fail 30 error STATE_CONFLICT "Policy identity does not match generation"
 source_id="$(jq -r '.source_id // empty' "$generation_file")"; source_file="$(erl_find_source_file "$vault" "$source_id" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation source state not found"
+[[ "$input_source_id" == "$source_id" ]] || erl_fail 30 error STATE_CONFLICT "Candidate source identity does not match generation source"
+[[ "$input_source_fingerprint" == "$(jq -r '.source_fingerprint // empty' "$source_file")" ]] || erl_fail 30 error STATE_CONFLICT "Candidate source fingerprint does not match generation source"
 jq -e --arg chapter "$chapter" 'any(.chapters[]?; .chapter_uuid==$chapter)' "$source_file" >/dev/null || erl_fail 10 error VALIDATION_FAILED "Chapter is not registered for generation source"
-fingerprint="$(jq -cS '{schema_version,generation_uuid,chapter_uuid,policy_identity,candidates}' "$input" | erl_sha256_stdin)"
+fingerprint="$(jq -cS '{schema_version,generation_uuid,chapter_uuid,policy_identity,source_identity,candidates}' "$input" | erl_sha256_stdin)"
 existing=""
 for candidate_file in "$vault/.state/erl/staging"/*.json(N); do
   [[ "$(jq -r '.extraction_fingerprint // empty' "$candidate_file" 2>/dev/null)" == "$fingerprint" ]] && { existing="$candidate_file"; break; }

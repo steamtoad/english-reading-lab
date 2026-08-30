@@ -512,6 +512,10 @@ Input:
   "generation_uuid": "...",
   "chapter_uuid": "...",
   "policy_identity": "sha256:...",
+  "source_identity": {
+    "source_id": "...",
+    "source_fingerprint": "sha256:..."
+  },
   "candidates": [
     {
       "ordinal": 1,
@@ -559,7 +563,10 @@ CLI. Отдельное поле `normalized_lemma` запрещено. `candida
 `enrichment.cefr.confidence` имеют различную семантику. `sense_gloss` не входит
 в canonical lexical identity.
 
-CLI также вычисляет deterministic extraction fingerprint из generation UUID, Chapter UUID, policy identity и canonicalized Candidate payload. Повторная staging того же fingerprint возвращает существующий `EXTRACTION_ID` с `code = ALREADY_STAGED`, `changed = false` и не создаёт второй staging batch.
+CLI сверяет `source_identity` с source state выбранной generation. `source_id` — UUID v4,
+а `source_fingerprint` — canonical fingerprint source artifact.
+
+CLI также вычисляет deterministic extraction fingerprint из generation UUID, Chapter UUID, policy identity, source identity и canonicalized Candidate payload. Повторная staging того же fingerprint возвращает существующий `EXTRACTION_ID` с `code = ALREADY_STAGED`, `changed = false` и не создаёт второй staging batch.
 
 Validation минимум:
 
@@ -567,6 +574,7 @@ Validation минимум:
 generation active;
 Chapter valid for generation;
 policy identity matches generation;
+source identity matches generation source state;
 candidate ordinal unique and ordered;
 required lexical fields non-empty;
 no persistent Vault mutation.

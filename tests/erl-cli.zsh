@@ -44,17 +44,40 @@ generation="$(jq -r .data.generation_uuid "$fixture/book.json")"
 work_id="$(jq -r .data.work_id "$fixture/book.json")"
 source_state=("$vault/.state/erl/works"/*/sources/*.json)
 chapter="$(jq -r '.chapters[0].chapter_uuid' "$source_state[1]")"
+source_id="$(jq -r .source_id "$source_state[1]")"
+source_fingerprint="$(jq -r .source_fingerprint "$source_state[1]")"
 
 "$erl/erl-chapter-export.zsh" --vault "$vault" --generation "$generation" --chapter "$chapter" --json > "$fixture/export.json"
 jq -e --arg chapter "$chapter" '.changed==false and .data.chapter_uuid==$chapter and (.data.content|contains("forlorn"))' "$fixture/export.json" >/dev/null
 
-jq -n --arg generation "$generation" --arg chapter "$chapter" --arg policy "$policy_identity" '{
+jq -n --arg generation "$generation" --arg chapter "$chapter" --arg policy "$policy_identity" --arg source_id "$source_id" --arg source_fingerprint "$source_fingerprint" '{
   schema_version:1,generation_uuid:$generation,chapter_uuid:$chapter,policy_identity:$policy,
+  source_identity:{source_id:$source_id,source_fingerprint:$source_fingerprint},
   candidates:[{ordinal:1,surface_form:"forlorn",lemma:"forlorn",pos:"adjective",lexical_type:"word",candidate_confidence:0.95,
     first_relevant_occurrence:{text:"forlorn sentinel"},context:"The forlorn sentinel stood watch.",
     enrichment:{ipa:"/fəˈlɔːn/",translation_ru:["покинутый"],definition_en:"pitifully sad and abandoned",sense_gloss:"sad and abandoned",
       cefr:{value:"C1",confidence:0.8,provenance:"model-estimate"},register:[],rarity:"uncommon",labels:["literary"],semantic_relations:[],collocations:[]}}]
 }' > "$fixture/extraction.json"
+
+jq 'del(.source_identity)' "$fixture/extraction.json" > "$fixture/extraction-missing-source.json"
+set +e
+"$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction-missing-source.json" --dry-run --json > "$fixture/stage-missing-source.json"
+missing_source_rc=$?
+set -e
+if [[ "$missing_source_rc" != 10 ]] || ! jq -e '.status=="error" and .code=="VALIDATION_FAILED" and .changed==false' "$fixture/stage-missing-source.json" >/dev/null; then
+  print -ru2 -- 'FAIL: extraction accepted missing source identity'
+  exit 1
+fi
+
+jq '.source_identity.source_fingerprint="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' "$fixture/extraction.json" > "$fixture/extraction-wrong-source.json"
+set +e
+"$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction-wrong-source.json" --dry-run --json > "$fixture/stage-wrong-source.json"
+wrong_source_rc=$?
+set -e
+if [[ "$wrong_source_rc" != 30 ]] || ! jq -e '.status=="error" and .code=="STATE_CONFLICT" and .changed==false' "$fixture/stage-wrong-source.json" >/dev/null; then
+  print -ru2 -- 'FAIL: extraction accepted mismatched source identity'
+  exit 1
+fi
 
 "$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction.json" --dry-run --json > "$fixture/stage-dry.json"
 [[ "$(find "$vault/.state/erl/staging" -type f 2>/dev/null | wc -l | tr -d ' ')" == 0 ]] || { print -ru2 -- 'FAIL: extraction dry-run wrote staging'; exit 1; }
@@ -75,6 +98,12 @@ if [[ "$invalid_rarity_rc" != 10 ]] || ! jq -e '.status=="error" and .code=="VAL
 fi
 "$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction.json" --apply --json > "$fixture/stage.json"
 extraction="$(jq -r .data.extraction_id "$fixture/stage.json")"
+jq -e --arg source_id "$source_id" --arg source_fingerprint "$source_fingerprint" \
+  '.source_identity.source_id==$source_id and .source_identity.source_fingerprint==$source_fingerprint' \
+  "$vault/.state/erl/staging/$extraction.json" >/dev/null || {
+  print -ru2 -- 'FAIL: staged extraction did not retain source identity'
+  exit 1
+}
 "$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction.json" --apply --json > "$fixture/stage-repeat.json"
 jq -e --arg extraction "$extraction" '.code=="ALREADY_STAGED" and .changed==false and .data.extraction_id==$extraction' "$fixture/stage-repeat.json" >/dev/null
 
@@ -113,8 +142,10 @@ print -r -- 'The forlorn ranger returned.' > "$fixture/book-two.txt"
 generation_two="$(jq -r .data.generation_uuid "$fixture/book-two.json")"
 source_two=("$vault/.state/erl/works/second-book/sources"/*.json)
 chapter_two="$(jq -r '.chapters[0].chapter_uuid' "$source_two[1]")"
-jq --arg generation "$generation_two" --arg chapter "$chapter_two" \
-  '.generation_uuid=$generation | .chapter_uuid=$chapter | .candidates[0].context="The forlorn ranger returned." | .candidates[0].first_relevant_occurrence.text="forlorn ranger"' \
+source_id_two="$(jq -r .source_id "$source_two[1]")"
+source_fingerprint_two="$(jq -r .source_fingerprint "$source_two[1]")"
+jq --arg generation "$generation_two" --arg chapter "$chapter_two" --arg source_id "$source_id_two" --arg source_fingerprint "$source_fingerprint_two" \
+  '.generation_uuid=$generation | .chapter_uuid=$chapter | .source_identity={source_id:$source_id,source_fingerprint:$source_fingerprint} | .candidates[0].context="The forlorn ranger returned." | .candidates[0].first_relevant_occurrence.text="forlorn ranger"' \
   "$fixture/extraction.json" > "$fixture/extraction-two.json"
 "$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction-two.json" --apply --json > "$fixture/stage-two.json"
 extraction_two="$(jq -r .data.extraction_id "$fixture/stage-two.json")"

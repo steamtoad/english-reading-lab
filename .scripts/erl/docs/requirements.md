@@ -565,6 +565,15 @@ policy identity/fingerprint
 source identity
 ```
 
+В v1 `source identity` в batch представлена объектом:
+
+```text
+SOURCE_ID
+source fingerprint
+```
+
+Оба значения должны совпадать с persistent source state выбранной Book generation.
+
 ```text
 ERL-CAND-003
 Candidate содержит минимум:

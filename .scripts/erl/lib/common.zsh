@@ -178,7 +178,11 @@ erl_candidate_payload_validate() {
       type=="array" and all(.[]; type=="object");
 
     .schema_version==1 and (.generation_uuid|type=="string") and (.chapter_uuid|type=="string") and
-    (.policy_identity|test("^sha256:[0-9a-f]{64}$")) and (.candidates|type=="array") and
+    (.policy_identity|test("^sha256:[0-9a-f]{64}$")) and
+    (.source_identity|type=="object" and exact_keys(["source_id","source_fingerprint"])) and
+    (.source_identity.source_id|test("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")) and
+    (.source_identity.source_fingerprint|test("^sha256:[0-9a-f]{64}$")) and
+    (.candidates|type=="array") and
     all(.candidates[];
       exact_keys(["ordinal","surface_form","lemma","pos","lexical_type","candidate_confidence","first_relevant_occurrence","context","enrichment"]) and
       (.ordinal|type=="number" and .>=1 and floor==.) and
