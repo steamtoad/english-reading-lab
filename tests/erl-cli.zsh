@@ -53,11 +53,26 @@ jq -n --arg generation "$generation" --arg chapter "$chapter" --arg policy "$pol
   candidates:[{ordinal:1,surface_form:"forlorn",lemma:"forlorn",pos:"adjective",lexical_type:"word",candidate_confidence:0.95,
     first_relevant_occurrence:{text:"forlorn sentinel"},context:"The forlorn sentinel stood watch.",
     enrichment:{ipa:"/fəˈlɔːn/",translation_ru:["покинутый"],definition_en:"pitifully sad and abandoned",sense_gloss:"sad and abandoned",
-      cefr:{value:"C1",confidence:0.8,provenance:"model-estimate"},register:[],rarity:[],labels:["literary"],semantic_relations:[],collocations:[]}}]
+      cefr:{value:"C1",confidence:0.8,provenance:"model-estimate"},register:[],rarity:"uncommon",labels:["literary"],semantic_relations:[],collocations:[]}}]
 }' > "$fixture/extraction.json"
 
 "$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction.json" --dry-run --json > "$fixture/stage-dry.json"
 [[ "$(find "$vault/.state/erl/staging" -type f 2>/dev/null | wc -l | tr -d ' ')" == 0 ]] || { print -ru2 -- 'FAIL: extraction dry-run wrote staging'; exit 1; }
+jq '.candidates[0].enrichment.ipa="" | .candidates[0].lexical_type="idiom"' "$fixture/extraction.json" > "$fixture/extraction-empty-ipa.json"
+"$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction-empty-ipa.json" --dry-run --json > "$fixture/stage-empty-ipa.json"
+jq -e '.status=="ok" and .code=="OK" and .changed==false' "$fixture/stage-empty-ipa.json" >/dev/null || {
+  print -ru2 -- 'FAIL: extraction rejected schema-valid empty IPA'
+  exit 1
+}
+jq '.candidates[0].enrichment.rarity=[]' "$fixture/extraction.json" > "$fixture/extraction-invalid-rarity.json"
+set +e
+"$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction-invalid-rarity.json" --dry-run --json > "$fixture/stage-invalid-rarity.json"
+invalid_rarity_rc=$?
+set -e
+if [[ "$invalid_rarity_rc" != 10 ]] || ! jq -e '.status=="error" and .code=="VALIDATION_FAILED" and .changed==false' "$fixture/stage-invalid-rarity.json" >/dev/null; then
+  print -ru2 -- 'FAIL: extraction accepted array-valued Candidate rarity'
+  exit 1
+fi
 "$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction.json" --apply --json > "$fixture/stage.json"
 extraction="$(jq -r .data.extraction_id "$fixture/stage.json")"
 "$erl/erl-extraction-stage.zsh" --vault "$vault" --input "$fixture/extraction.json" --apply --json > "$fixture/stage-repeat.json"

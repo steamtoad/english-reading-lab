@@ -170,24 +170,37 @@ erl_policy_validate() {
 erl_candidate_payload_validate() {
   local file="$1"
   jq -e '
+    def exact_keys($expected):
+      ((keys - $expected) | length) == 0 and (($expected - keys) | length) == 0;
+    def nonempty_strings:
+      type=="array" and all(.[]; type=="string" and length>0);
+    def object_array:
+      type=="array" and all(.[]; type=="object");
+
     .schema_version==1 and (.generation_uuid|type=="string") and (.chapter_uuid|type=="string") and
     (.policy_identity|test("^sha256:[0-9a-f]{64}$")) and (.candidates|type=="array") and
     all(.candidates[];
+      exact_keys(["ordinal","surface_form","lemma","pos","lexical_type","candidate_confidence","first_relevant_occurrence","context","enrichment"]) and
       (.ordinal|type=="number" and .>=1 and floor==.) and
       ([.surface_form,.lemma,.pos,.lexical_type,.context,.first_relevant_occurrence.text]|all(type=="string" and length>0)) and
+      (.first_relevant_occurrence|type=="object") and
       (.candidate_confidence|type=="number" and .>=0 and .<=1) and
       (.lexical_type|IN("word","phrase","phrasal_verb","idiom","collocation","fixed_expression")) and
       (.enrichment|type=="object") and
+      (.enrichment|exact_keys(["ipa","translation_ru","definition_en","sense_gloss","cefr","register","rarity","labels","semantic_relations","collocations"])) and
+      (.enrichment.cefr|type=="object" and exact_keys(["value","confidence","provenance"])) and
       (.enrichment.cefr.value|IN("A1","A2","B1","B2","C1","C2")) and
       (.enrichment.cefr.confidence|type=="number" and .>=0 and .<=1) and
       (.enrichment.cefr.provenance|type=="string" and length>0) and
-      (.enrichment.ipa|type=="string" and length>0) and
-      (.enrichment.translation_ru|type=="array" and length>0) and
+      (.enrichment.ipa|type=="string") and
+      (.enrichment.translation_ru|nonempty_strings and length>0) and
       (.enrichment.definition_en|type=="string" and length>0) and
       (.enrichment.sense_gloss|type=="string" and length>0) and
-      (.enrichment.register|type=="array") and (.enrichment.rarity|type=="array") and (.enrichment.labels|type=="array") and
-      (.enrichment.semantic_relations|type=="array") and (.enrichment.collocations|type=="array") and
-      (has("normalized_lemma")|not)
+      (.enrichment.register|nonempty_strings) and
+      (.enrichment.rarity|type=="string") and
+      (.enrichment.labels|nonempty_strings and ((length) == (unique|length))) and
+      (.enrichment.semantic_relations|object_array) and
+      (.enrichment.collocations|object_array)
     ) and
     (([.candidates[].ordinal]|length) == ([.candidates[].ordinal]|unique|length)) and
     ([.candidates[].ordinal] == ([.candidates[].ordinal]|sort))

@@ -6,6 +6,9 @@
 # Source books
 /books/
 
+# Local canonical Vault and ERL state
+/vault/
+
 # macOS
 .DS_Store
 
