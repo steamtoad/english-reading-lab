@@ -1,32 +1,65 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Project: English Reading Lab (ERL), a plugin/domain workflow over Zettelkasten Vault.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  ERL repository boundary:
+  - Ordinary ERL development changes only the ERL repository.
+  - ERL may depend on canonical host object/lib contracts.
+  - If the host contract is insufficient, record a contract gap instead of patching host core implicitly.
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+  Requirements transition:
+  - .scripts/erl/docs/requirements.md is currently the normative legacy requirements source.
+  - openspec/specs/ is being introduced incrementally and MUST NOT be assumed complete until an explicit baseline migration is completed.
+  - Existing observable behavior and existing normative requirements must be preserved unless an approved OpenSpec change explicitly modifies them.
+
+  Domain constraints:
+  - ERL uses canonical Vault Topic, Note, and Memo objects.
+  - Do not introduce ERL-specific AsciiDoc attributes.
+  - Preserve canonical Vault UUID, filename, link, type, key-topic, and deprecated semantics.
+  - Persistent ERL state contracts, compatibility, migration, recovery, and lifecycle behavior are requirements when affected.
+
+  Specification policy:
+  - Prefer small coherent changes over broad redesigns.
+  - Specifications describe required observable behavior, not implementation details.
+  - Use existing code, tests, documentation, and legacy requirements to establish current behavior.
+  - Do not silently redefine undocumented or conflicting existing behavior.
+  - Write prose in Russian. Keep code identifiers, paths, CLI commands, protocol fields, and established requirement IDs unchanged.
+
+rules:
+  proposal:
+    - State the problem and behavioral intent before implementation ideas.
+    - Identify affected capabilities and relevant legacy requirement IDs when known.
+    - Explicitly identify compatibility, migration, destructive-operation, and host-contract impact when applicable.
+    - Keep unrelated improvements outside the change scope.
+
+  specs:
+    - Requirements must describe observable or externally verifiable behavior.
+    - Use MUST or SHALL for normative requirements.
+    - Every normative requirement must have at least one verifiable scenario.
+    - Distinguish existing baseline behavior from behavior introduced or modified by the current change.
+    - Do not encode implementation structure as a behavioral requirement.
+
+  design:
+    - Preserve ERL and host repository boundaries.
+    - Explain non-obvious architectural decisions and rejected alternatives.
+    - Include migration, rollback, recovery, and compatibility strategy when affected.
+
+  tasks:
+    - Every implementation task must trace to the proposal, specs, or design.
+    - Include tests or other verification needed to demonstrate specification compliance.
+    - Do not add unrelated refactoring or cleanup to the active change.
+
+operations:
+  apply:
+    guidance:
+      - Implement only the behavior covered by the active change.
+      - If implementation reveals a specification gap, update the change artifacts before expanding implementation scope.
+      - Run relevant tests before marking implementation tasks complete.
+      - Preserve existing compatibility unless the active change explicitly permits a break.
+
+  archive:
+    guidance:
+      - Do not archive a change with unresolved implementation/specification discrepancies.
+      - Do not archive while required tasks remain incomplete.
+      - Preserve the archived change as the historical record of why the baseline changed.
