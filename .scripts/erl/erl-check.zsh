@@ -9,6 +9,9 @@
 emulate -L zsh
 setopt pipe_fail no_unset
 
+script_dir="${0:A:h}"
+source "$script_dir/lib/card-content.zsh"
+
 readonly ERL_COMMAND="erl-check"
 readonly ERL_SCHEMA_VERSION=1
 readonly ERL_UUID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
@@ -129,8 +132,6 @@ doc_path() {
   local uuid="$1"
   if [[ -f "$vault/notes/$uuid.adoc" ]]; then
     print -r -- "$vault/notes/$uuid.adoc"
-  elif [[ -f "$vault/$uuid.adoc" ]]; then
-    print -r -- "$vault/$uuid.adoc"
   else
     return 1
   fi
@@ -162,6 +163,18 @@ doc_is_deprecated() {
     /^:[[:alnum:]_-]+:/ { next }
     { exit }
     END { exit(found ? 0 : 1) }
+  ' "$file"
+}
+
+handoff_targets() {
+  local file="$1" label="$2"
+  awk -v label="$label" '
+    $0=="== Reading handoff" {inside=1; next}
+    inside && /^== / {exit}
+    inside {
+      pattern="^link:([0-9a-f-]{36})\\.adoc\\[" label "\\]$"
+      if (match($0,pattern)) {value=$0; sub(/^link:/,"",value); sub(/\.adoc\[.*$/,"",value); print value}
+    }
   ' "$file"
 }
 
@@ -208,6 +221,13 @@ check_document_common() {
       ;;
     *) add_diag error ERL-CHECK-002 "Unknown recorded ERL role" document_uuid "$uuid" role "$role" ;;
   esac
+
+  local readability_condition
+  while IFS= read -r readability_condition; do
+    [[ -n "$readability_condition" ]] || continue
+    add_diag error ERL-CHECK-030 "ERL card content is not human-readable: $readability_condition" \
+      document_uuid "$uuid" role "$role" generation_uuid "$generation" work_id "$work_id" condition "$readability_condition"
+  done < <(erl_card_content_findings "$file" "$role")
 
   if [[ "$role" == vocabulary ]]; then
     local lemma pos lexical_type identity
@@ -282,10 +302,8 @@ if [[ -z "$vault" ]]; then
 fi
 if [[ -z "$vault" ]]; then
   candidate="$PWD"
-  typeset -a root_docs
   while [[ "$candidate" != / ]]; do
-    root_docs=("$candidate"/*.adoc(N))
-    if [[ -d "$candidate/.state/erl/works" && ( -d "$candidate/notes" || ${#root_docs} -gt 0 ) ]]; then
+    if [[ -d "$candidate/notes" || -d "$candidate/.state/erl" ]]; then
       vault="$candidate"
       break
     fi
@@ -303,6 +321,13 @@ work_index_file="$tmp_dir/works.tsv"
 generation_index_file="$tmp_dir/generations.tsv"
 vocabulary_index_file="$tmp_dir/vocabulary.tsv"
 : > "$diagnostics_file"; : > "$referenced_file"; : > "$work_index_file"; : > "$generation_index_file"; : > "$vocabulary_index_file"
+
+if [[ -d "$vault/vault/notes" || -d "$vault/vault/.state/erl" ]]; then
+  add_diag error HOME_LAYOUT_MIGRATION_REQUIRED \
+    "Legacy nested vault/ layout detected; explicit home-layout migration is required" \
+    legacy_notes "$vault/vault/notes" legacy_state "$vault/vault/.state/erl" \
+    canonical_notes "$vault/notes" canonical_state "$vault/.state/erl"
+fi
 
 works_root="$vault/.state/erl/works"
 transactions_root="$vault/.state/erl/transactions"
@@ -404,7 +429,7 @@ for work_file in "$works_root"/*/work.json(N); do
         add_diag warning ERL-CHECK-023 "Deprecated Book Topic requires Classic Reduce reconciliation" work_id "$work_id" generation_uuid "$generation_uuid"
       fi
       key_topic="$(doc_attr "$topic_file" key-topic)"
-      for successor_file in "$vault/notes"/*.adoc(N) "$vault"/*.adoc(N); do
+      for successor_file in "$vault/notes"/*.adoc(N); do
         successor_uuid="${successor_file:t:r}"
         [[ "$successor_uuid" == "$generation_uuid" || -n "${generation_ids[$successor_uuid]-}" ]] && continue
         [[ "$(doc_attr "$successor_file" type)" == topic && "$(doc_attr "$successor_file" key-topic)" == "$key_topic" ]] || continue
@@ -471,6 +496,55 @@ for generation_file in "$works_root"/*/generations/*.json(N); do
       add_diag warning ERL-CHECK-015 "Deprecated document occurs in active generation sequence; closure or reconciliation is required" generation_uuid "$generation_uuid" document_uuid "$document_uuid"
     fi
   done < "$sequence_tsv"
+
+  # ERL-CHECK-029: project the Chapter-local tail to the adjacent Chapter Note.
+  source_id="$(json_value "$generation_file" '.source_id')"
+  source_matches=("$works_root"/*/sources/"$source_id.json"(N))
+  (( ${#source_matches} == 1 )) && source_file="${source_matches[1]}" || source_file=""
+  handoff_finalize_pending=0
+  for pending_tx in "$transactions_root"/*/transaction.json(N); do
+    if jq -e --arg generation "$generation_uuid" 'select(.operation=="erl-vocabulary-ingest" and .generation_uuid==$generation and (.phase=="state_updated" or .phase=="document_created" or .phase=="applying"))' "$pending_tx" >/dev/null 2>&1; then
+      handoff_finalize_pending=1; break
+    fi
+  done
+  if [[ -n "$source_file" && "$handoff_finalize_pending" == 0 ]]; then
+    while IFS=$'\t' read -r current_chapter current_order current_source next_chapter next_source; do
+      [[ -n "$current_chapter" ]] || continue
+      nodes=("${(@f)$(jq -r --arg chapter "$current_chapter" '.sequence | map(select(.chapter_uuid==$chapter)) | sort_by(.ordinal) | .[].document_uuid' "$generation_file")}")
+      [[ -n "${nodes[1]-}" ]] || nodes=()
+      tail_uuid=""; (( ${#nodes} > 0 )) && tail_uuid="${nodes[-1]}"
+      outgoing_count=0; outgoing_target=""; outgoing_owner=""
+      for node_uuid in "${nodes[@]}"; do
+        node_file="$(doc_path "$node_uuid" 2>/dev/null)" || continue
+        targets=("${(@f)$(handoff_targets "$node_file" "Следующая глава")}")
+        [[ -n "${targets[1]-}" ]] || targets=()
+        if (( ${#targets} > 0 )); then
+          outgoing_count=$((outgoing_count + ${#targets}))
+          outgoing_target="${targets[1]}"; outgoing_owner="$node_uuid"
+        fi
+      done
+      if [[ -z "$next_chapter" ]]; then
+        (( outgoing_count == 0 )) || add_diag error ERL-CHECK-029 "Terminal Chapter has a stale outgoing handoff" generation_uuid "$generation_uuid" source_id "$source_id" current_chapter_uuid "$current_chapter" tail_memo_uuid "$tail_uuid"
+        continue
+      fi
+      next_file="$(doc_path "$next_chapter" 2>/dev/null)" || next_file=""
+      incoming=(); [[ -z "$next_file" ]] || incoming=("${(@f)$(handoff_targets "$next_file" "Последнее memo предыдущей главы")}")
+      [[ -n "${incoming[1]-}" ]] || incoming=()
+      if [[ "$current_source" != "$source_id" || "$next_source" != "$source_id" ]]; then
+        add_diag error ERL-CHECK-029 "Chapter handoff crosses SOURCE_ID boundary" generation_uuid "$generation_uuid" source_id "$source_id" current_chapter_uuid "$current_chapter" next_chapter_uuid "$next_chapter" tail_memo_uuid "$tail_uuid"
+        continue
+      fi
+      if [[ -z "$tail_uuid" ]]; then
+        (( outgoing_count == 0 && ${#incoming} == 0 )) || add_diag error ERL-CHECK-029 "Chapter without a Memo Chain has a synthetic handoff" generation_uuid "$generation_uuid" source_id "$source_id" current_chapter_uuid "$current_chapter" next_chapter_uuid "$next_chapter"
+      else
+        (( outgoing_count == 1 )) || add_diag error ERL-CHECK-029 "Chapter tail must have exactly one outgoing handoff" generation_uuid "$generation_uuid" source_id "$source_id" current_chapter_uuid "$current_chapter" next_chapter_uuid "$next_chapter" tail_memo_uuid "$tail_uuid"
+        [[ "$outgoing_owner" == "$tail_uuid" ]] || add_diag error ERL-CHECK-029 "Outgoing handoff is attached to a stale non-tail Memo" generation_uuid "$generation_uuid" source_id "$source_id" current_chapter_uuid "$current_chapter" next_chapter_uuid "$next_chapter" tail_memo_uuid "$tail_uuid" handoff_owner_uuid "$outgoing_owner"
+        [[ "$outgoing_target" == "$next_chapter" ]] || add_diag error ERL-CHECK-029 "Outgoing handoff does not target the adjacent Chapter" generation_uuid "$generation_uuid" source_id "$source_id" current_chapter_uuid "$current_chapter" next_chapter_uuid "$next_chapter" tail_memo_uuid "$tail_uuid"
+        (( ${#incoming} == 1 )) || add_diag error ERL-CHECK-029 "Adjacent Chapter must have exactly one reciprocal incoming handoff" generation_uuid "$generation_uuid" source_id "$source_id" current_chapter_uuid "$current_chapter" next_chapter_uuid "$next_chapter" tail_memo_uuid "$tail_uuid"
+        [[ "${incoming[1]-}" == "$tail_uuid" ]] || add_diag error ERL-CHECK-029 "Incoming handoff does not target the previous Chapter tail" generation_uuid "$generation_uuid" source_id "$source_id" current_chapter_uuid "$current_chapter" next_chapter_uuid "$next_chapter" tail_memo_uuid "$tail_uuid"
+      fi
+    done < <(jq -r '.chapters | sort_by(.source_order) as $c | range(0; $c|length) as $i | [$c[$i].chapter_uuid,($c[$i].source_order|tostring),($c[$i].source_id // ""),($c[$i+1].chapter_uuid // ""),($c[$i+1].source_id // "")] | @tsv' "$source_file")
+  fi
 
   # Members are persistent relationships even when not duplicated in sequence.
   jq -cr '.members[]? | [(.document_uuid // ""),(.role // "")] | @tsv' "$generation_file" 2>/dev/null | while IFS=$'\t' read -r document_uuid role; do

@@ -26,10 +26,27 @@ done
 erl_require_command jq
 [[ -n "$mode" ]] || erl_usage_error "Select exactly one of --dry-run or --apply"
 [[ "$txid" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]] || erl_usage_error "--txid must be lowercase UUID v4"
-vault="$(erl_resolve_vault "$vault_arg")"; tx_dir="$vault/.state/erl/transactions/$txid"; tx_file="$tx_dir/transaction.json"
+vault="$(erl_resolve_target_home "$vault_arg" allow-legacy)"; tx_dir="$vault/.state/erl/transactions/$txid"; tx_file="$tx_dir/transaction.json"
 [[ -f "$tx_file" ]] || erl_fail 20 error NOT_FOUND "Transaction not found: $txid"
 operation="$(jq -r '.operation // empty' "$tx_file")"; phase="$(jq -r '.phase // empty' "$tx_file")"
 [[ "$phase" != committed && "$phase" != rolled_back ]] || erl_emit ok ALREADY_RECOVERED false "$(jq -cn --arg txid "$txid" --arg phase "$phase" '{txid:$txid,phase:$phase}')" '[]' 0
+if [[ "$operation" == erl-home-layout-migrate ]]; then
+  data="$(jq -cn --arg txid "$txid" --arg operation "$operation" --arg phase "$phase" '{txid:$txid,operation:$operation,phase:$phase,recovery_action:"rollback"}')"
+  [[ "$mode" == apply ]] || erl_emit ok OK false "$data" '[]' 0
+  lock="$vault/.state/erl/locks/transaction-recover-$txid.lock"; erl_lock_acquire "$lock"
+  while IFS=$'\t' read -r source target expected copied; do
+    [[ "$copied" == true && -e "$target" ]] || continue
+    [[ "$(erl_sha256_file "$target")" == "$expected" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Migrated target changed unexpectedly: $target"
+    if [[ ! -e "$source" ]]; then
+      mkdir -p -- "${source:h}" || erl_fail 60 error TRANSACTION_FAILED "Cannot restore migration source directory"
+      cp -- "$target" "$source" || erl_fail 60 error TRANSACTION_FAILED "Cannot restore migration source: $source"
+    fi
+    [[ "$(erl_sha256_file "$source")" == "$expected" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Migration source changed unexpectedly: $source"
+    rm -f -- "$target" || erl_fail 60 error TRANSACTION_FAILED "Cannot remove migrated target: $target"
+  done < <(jq -r '.items|reverse[]|[.source,.target,.hash,.copied]|@tsv' "$tx_file")
+  jq '.phase="rolled_back"' "$tx_file" | erl_atomic_write "$tx_file" || erl_fail 60 error TRANSACTION_FAILED "Cannot finalize home-layout rollback"
+  erl_emit ok OK true "$data" '[]' 0
+fi
 if [[ "$operation" == erl-book-ingest ]]; then
   generation="$(jq -r '.generation_uuid // empty' "$tx_file")"; manifest="$(jq -r '.work_manifest_path // empty' "$tx_file")"
   action=rollback
@@ -56,6 +73,38 @@ if [[ "$operation" == erl-book-ingest ]]; then
   work_dir="$(jq -r '.work_dir // empty' "$tx_file")"
   [[ -n "$work_dir" ]] && { rmdir -- "$work_dir/generations" "$work_dir/sources" "$work_dir" 2>/dev/null || true; }
   jq '.phase="rolled_back"' "$tx_file" | erl_atomic_write "$tx_file" || erl_fail 60 error TRANSACTION_FAILED "Cannot finalize Book-ingest rollback"
+  rm -rf -- "$tx_dir/backups"
+  erl_emit ok OK true "$data" '[]' 0
+fi
+if [[ "$operation" == erl-card-content-repair ]]; then
+  data="$(jq -cn --arg txid "$txid" --arg operation "$operation" --arg phase "$phase" '{txid:$txid,operation:$operation,phase:$phase,recovery_action:"rollback"}')"
+  [[ "$mode" == apply ]] || erl_emit ok OK false "$data" '[]' 0
+  lock="$vault/.state/erl/locks/transaction-recover-$txid.lock"; erl_lock_acquire "$lock"
+  while IFS=$'\t' read -r document_uuid document_path pre_hash post_hash; do
+    backup="$tx_dir/backups/$document_uuid.adoc"
+    [[ -f "$backup" && "$(erl_sha256_file "$backup")" == "$pre_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Repair backup is missing or changed: $document_uuid"
+    if [[ "$phase" == applied ]]; then
+      [[ -f "$document_path" && -n "$post_hash" && "$(erl_sha256_file "$document_path")" == "$post_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Repaired document changed unexpectedly: $document_path"
+      cp -- "$backup" "$document_path" || erl_fail 60 error TRANSACTION_FAILED "Cannot restore repaired document: $document_path"
+    fi
+  done < <(jq -r '.documents[] | [.document_uuid,.path,.pre_hash,(.post_hash // "")]|@tsv' "$tx_file")
+  jq '.phase="rolled_back"' "$tx_file" | erl_atomic_write "$tx_file" || erl_fail 60 error TRANSACTION_FAILED "Cannot finalize card-content repair rollback"
+  rm -rf -- "$tx_dir/backups"
+  erl_emit ok OK true "$data" '[]' 0
+fi
+if [[ "$operation" == erl-chapter-chain-handoff ]]; then
+  data="$(jq -cn --arg txid "$txid" --arg operation "$operation" --arg phase "$phase" '{txid:$txid,operation:$operation,phase:$phase,recovery_action:"rollback"}')"
+  [[ "$mode" == apply ]] || erl_emit ok OK false "$data" '[]' 0
+  lock="$vault/.state/erl/locks/transaction-recover-$txid.lock"; erl_lock_acquire "$lock"
+  while IFS=$'\t' read -r document_uuid document_path pre_hash post_hash; do
+    backup="$tx_dir/backups/$document_uuid.adoc"
+    [[ -f "$backup" && "$(erl_sha256_file "$backup")" == "$pre_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Handoff backup is missing or changed: $document_uuid"
+    if [[ "$phase" == applied ]]; then
+      [[ -f "$document_path" && -n "$post_hash" && "$(erl_sha256_file "$document_path")" == "$post_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Handoff document changed unexpectedly: $document_path"
+      cp -- "$backup" "$document_path" || erl_fail 60 error TRANSACTION_FAILED "Cannot restore handoff document: $document_path"
+    fi
+  done < <(jq -r '.documents[] | [.document_uuid,.path,.pre_hash,(.post_hash // "")]|@tsv' "$tx_file")
+  jq '.phase="rolled_back"' "$tx_file" | erl_atomic_write "$tx_file" || erl_fail 60 error TRANSACTION_FAILED "Cannot finalize Chapter handoff rollback"
   rm -rf -- "$tx_dir/backups"
   erl_emit ok OK true "$data" '[]' 0
 fi

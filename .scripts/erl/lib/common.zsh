@@ -40,9 +40,13 @@ erl_fail() {
 
 erl_usage_error() { erl_fail 2 error INVALID_INPUT "$1"; }
 
-erl_resolve_vault() {
-  local explicit="${1:-}" candidate
-  local -a root_docs
+erl_legacy_home_layout_exists() {
+  local home="$1"
+  [[ -d "$home/vault/notes" || -d "$home/vault/.state/erl" ]]
+}
+
+erl_resolve_target_home() {
+  local explicit="${1:-}" allow_legacy="${2:-}" candidate
   if [[ -n "$explicit" ]]; then
     candidate="$explicit"
   elif [[ -n "${ERL_VAULT:-}" ]]; then
@@ -50,17 +54,26 @@ erl_resolve_vault() {
   else
     candidate="$PWD"
     while [[ "$candidate" != / ]]; do
-      root_docs=("$candidate"/*.adoc(N))
-      if [[ -d "$candidate/notes" || ${#root_docs} -gt 0 ]]; then
+      if [[ -d "$candidate/notes" || -d "$candidate/.state/erl" ]]; then
         break
       fi
       candidate="${candidate:h}"
     done
     [[ "$candidate" != / ]] || candidate=""
   fi
-  [[ -n "$candidate" && -d "$candidate" ]] || erl_fail 20 error NOT_FOUND "Vault cannot be resolved; use --vault DIR or ERL_VAULT"
-  print -r -- "${candidate:A}"
+  [[ -n "$candidate" && -d "$candidate" ]] || erl_fail 20 error NOT_FOUND "Target Zettelkasten home cannot be resolved; use --vault DIR or ERL_VAULT"
+  candidate="${candidate:A}"
+  if [[ "$allow_legacy" != allow-legacy ]] && erl_legacy_home_layout_exists "$candidate"; then
+    erl_fail 30 blocked HOME_LAYOUT_MIGRATION_REQUIRED \
+      "Legacy nested layout detected; migrate $candidate/vault/{notes,.state/erl} to $candidate/{notes,.state/erl}" \
+      "$(jq -cn --arg home "$candidate" --arg notes "$candidate/notes" --arg state "$candidate/.state/erl" '{target_home:$home,canonical_notes:$notes,canonical_state:$state}')"
+  fi
+  print -r -- "$candidate"
 }
+
+# Compatibility name for public commands that still spell the input --vault.
+# Its value is the target Zettelkasten home itself, never a parent of vault/.
+erl_resolve_vault() { erl_resolve_target_home "$@"; }
 
 erl_uuid_v4() {
   local value
@@ -169,7 +182,6 @@ erl_git_preflight() {
 erl_doc_path() {
   local vault="$1" uuid="$2"
   [[ -f "$vault/notes/$uuid.adoc" ]] && { print -r -- "$vault/notes/$uuid.adoc"; return 0; }
-  [[ -f "$vault/$uuid.adoc" ]] && { print -r -- "$vault/$uuid.adoc"; return 0; }
   return 1
 }
 

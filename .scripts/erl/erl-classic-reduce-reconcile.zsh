@@ -35,7 +35,7 @@ topic_file="$(erl_doc_path "$vault" "$generation" 2>/dev/null)" || erl_fail 20 e
 erl_doc_deprecated "$topic_file" || erl_fail 40 blocked STATE_CONFLICT "Book Topic is still active; Classic reconciliation is not applicable"
 key_topic="$(erl_doc_attr "$topic_file" key-topic)"
 detected=()
-for file in "$vault/notes"/*.adoc(N) "$vault"/*.adoc(N); do
+for file in "$vault/notes"/*.adoc(N); do
   [[ "$file" == "$topic_file" ]] && continue
   [[ "$(erl_doc_attr "$file" type)" == topic && "$(erl_doc_attr "$file" key-topic)" == "$key_topic" ]] || continue
   erl_doc_deprecated "$file" && continue

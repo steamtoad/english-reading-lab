@@ -26,8 +26,8 @@ host .scripts/objects/
 Host contract разрешается независимо от ERL source root в порядке:
 
 1. explicit `ERL_HOST_HOME`;
-2. absolute `host_root` из `<vault>/.state/erl/host-contract.json`;
-3. `.scripts/objects/` самого target Vault/host root.
+2. absolute `host_root` из `<ZETTELKASTEN_HOME>/.state/erl/host-contract.json`;
+3. `.scripts/objects/` самого target Zettelkasten home/host root.
 
 Repository-relative fallback к ERL-owned `.scripts/objects/` запрещён. Если
 обязательный executable host contract отсутствует, команда завершается с
@@ -49,6 +49,9 @@ CLI не source'ит `.scripts/zettelkasten/`.
 ├── erl-chapter-export.zsh
 ├── erl-extraction-stage.zsh
 ├── erl-transaction-recover.zsh
+├── erl-chapter-chain-handoff.zsh
+├── erl-card-content-repair.zsh
+├── erl-home-layout-migrate.zsh
 ├── erl-state-migrate.zsh
 ├── erl-work-rename.zsh
 ├── erl-vocabulary-ingest.zsh
@@ -136,7 +139,23 @@ Read-only commands (`erl-chapter-export.zsh`, `erl-check.zsh`) не приним
 
 ### `--vault DIR`
 
-Явно задаёт root canonical Vault.
+Compatibility spelling для target Zettelkasten home — каталога, который
+непосредственно содержит `notes/` и `.state/`.
+
+`--vault DIR` MUST NOT указывать на родитель искусственного `vault/`:
+
+```text
+DIR/notes/
+DIR/.state/erl/
+```
+
+Legacy layout `DIR/vault/{notes,.state/erl}` возвращает
+`HOME_LAYOUT_MIGRATION_REQUIRED`. Он переносится только отдельной командой:
+
+```bash
+erl-home-layout-migrate.zsh --home DIR --dry-run --json
+erl-home-layout-migrate.zsh --home DIR --apply --json
+```
 
 При отсутствии:
 
@@ -147,6 +166,8 @@ Read-only commands (`erl-chapter-export.zsh`, `erl-check.zsh`) не приним
 ```
 
 Auto-detection не должен использовать hard-coded absolute path.
+Auto-detection разрешает только каталог с непосредственным `notes/` или
+`.state/erl/` и не использует root-level AsciiDoc либо nested `vault/` fallback.
 
 ### `--json`
 
@@ -1075,6 +1096,42 @@ erl-transaction-recover.zsh --vault "$VAULT" --txid "$TXID" --apply --json
 Для `erl-vocabulary-ingest` recovery либо завершает commit, если receipt уже
 записан, либо удаляет только неизменённый orphan document. При несовпадении
 recorded hashes операция блокируется с `RECOVERY_CONFLICT`.
+
+## `erl-card-content-repair.zsh`
+
+Read-only audit и explicit repair legacy cards по `ERL-DOC-008`:
+
+```bash
+erl-card-content-repair.zsh --vault "$VAULT" [--document "$UUID"] --dry-run --json
+erl-card-content-repair.zsh --vault "$VAULT" [--document "$UUID"] --apply --json
+```
+
+Dry-run возвращает exact `ERL-CHECK-030` findings, deterministic proposed
+changes и conflicts, не изменяя documents или state. Apply допускает только
+безопасно реконструируемые Book/Chapter blocks, сохраняет пользовательские
+sections, проверяет pre-mutation hashes и до mutation создаёт transaction
+journal с exact backups. Неоднозначный Vocabulary/Occurrence content и
+изменённые после audit документы дают `REPAIR_CONFLICT`; failure/post-validation
+восстанавливает exact pre-mutation bytes. Успешный result содержит `txid`.
+
+## `erl-chapter-chain-handoff.zsh`
+
+Batch finalization и explicit rebuild существующих Chapter chains:
+
+```bash
+erl-chapter-chain-handoff.zsh --vault "$VAULT" --generation "$GENERATION" \
+  [--chapter "$CHAPTER"] --dry-run --json
+erl-chapter-chain-handoff.zsh --vault "$VAULT" --generation "$GENERATION" \
+  [--chapter "$CHAPTER"] --apply --json
+```
+
+Adjacency вычисляется только из source state по `SOURCE_ID` и `source_order`.
+Без `--chapter` команда является explicit migration/rebuild всех materialized
+chains generation. Dry-run mutation-free показывает exact tail/next pairs.
+Apply обновляет generated `Reading handoff` sections под journal с exact
+backups и hashes; конфликтующее пользовательское содержимое даёт
+`STATE_CONFLICT`. Interrupted `applied` transaction возвращает
+`RECOVERY_REQUIRED` и откатывается через `erl-transaction-recover.zsh`.
 
 ---
 

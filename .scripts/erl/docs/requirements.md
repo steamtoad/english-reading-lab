@@ -74,8 +74,9 @@ ERL не патчит core автоматически.
 
 ```text
 ERL-ARCH-009
-ERL source и target host/Vault могут находиться в разных filesystem roots.
-Host operations разрешаются только через contract целевого host/Vault.
+ERL source, host implementation и target Zettelkasten home могут находиться
+в разных filesystem roots. Host operations разрешаются только через contract
+целевого host, а persistent output направляется в target Zettelkasten home.
 Repository-relative production fallback запрещён; отсутствие contract даёт explicit error.
 ```
 
@@ -134,7 +135,23 @@ Occurrence  = Memo
 
 ```text
 ERL-DOC-002
-Persistent ERL documents являются обычными UUID.adoc в canonical Vault namespace.
+Persistent ERL documents являются обычными UUID.adoc непосредственно в
+<ZETTELKASTEN_HOME>/notes/. Дополнительный промежуточный vault/ не используется.
+```
+
+```text
+ERL-DOC-008
+Каждая зарегистрированная Book, Chapter, Vocabulary и Occurrence card является
+valid UTF-8 AsciiDoc с понятным title, непустым role-relevant body, labelled
+required values и читаемыми canonical link labels. Raw JSON/YAML, необработанный
+HTML/XML, control characters и unresolved placeholders не заменяют content.
+```
+
+```text
+ERL-HOME-001
+Target Zettelkasten home является единым runtime root: canonical Topic, Note и
+Memo находятся в notes/, а ERL state — в .state/erl/. ERL source root и host
+implementation root не используются как production data destination.
 ```
 
 ```text
@@ -194,7 +211,7 @@ link:UUID.adoc[Description]
 ERL-STATE-001
 ERL использует единый local namespace:
 
-.state/erl/
+<ZETTELKASTEN_HOME>/.state/erl/
 ```
 
 Рекомендуемая структура:
@@ -222,9 +239,9 @@ ERL-STATE-002
 ERL-STATE-003
 Источник истины ERL состоит из:
 
-canonical Vault documents
+<ZETTELKASTEN_HOME>/notes/
 +
-.state/erl/works/
+<ZETTELKASTEN_HOME>/.state/erl/works/
 ```
 
 ```text
@@ -248,6 +265,13 @@ staging/, transactions/, cache/ и locks/ имеют собственные life
 ```text
 ERL-STATE-007
 cache/ и derived indexes должны быть полностью rebuildable.
+```
+
+```text
+ERL-STATE-018
+Legacy <ZETTELKASTEN_HOME>/vault/{notes,.state/erl} не принимается silently.
+Mutation блокируется с HOME_LAYOUT_MIGRATION_REQUIRED до explicit migration,
+поддерживающей dry-run, collision detection, journal, rollback и recovery.
 ```
 
 ```text
@@ -478,6 +502,13 @@ ERL-CHAPTER-011
 Обычный erl-book-reduce не deprecated'ит durable Chapter Notes.
 ```
 
+```text
+ERL-CHAPTER-016
+Следующая Chapter Note непосредственно после completed Chapter Memo Chain
+содержит ровно одну canonical link в section `Reading handoff` на tail Memo с
+label `Последнее memo предыдущей главы`. Chapter без Memo Chain не создаёт link.
+```
+
 ---
 
 ## 7. Incremental processing
@@ -638,6 +669,13 @@ Persistent work state хранит достаточный ingestion receipt дл
 ERL-CAND-009
 Материальное изменение card/extraction/lexical policy после ingestion
 создаёт новую semantic generation через Reduce, а не переписывает старую generation молча.
+```
+
+```text
+ERL-CAND-010
+Default extraction policy анализирует Chapter целиком и не применяет
+фиксированную или адаптивную квоту к числу подходящих Candidates в Chapter.
+Ограничение «один Candidate на lexical identity» сохраняется.
 ```
 
 ---
@@ -956,6 +994,22 @@ Deprecated documents не входят в active reading sequence.
 в .state/erl/works/. Audit закрытой sequence обеспечивается deprecated Vault
 documents и обязательным compact committed transaction manifest/result,
 который не удаляется обычной очисткой transaction backups.
+```
+
+```text
+ERL-SEQ-012
+Tail Memo completed Chapter chain содержит `Reading handoff` link с label
+`Следующая глава` на непосредственно следующую Chapter Note того же SOURCE_ID.
+Terminal Chapter не имеет outgoing handoff; Chapter-local Memo Chains не
+соединяются напрямую.
+```
+
+```text
+ERL-SEQ-013
+Reciprocal handoff materialизуется только после Candidate completion как одна
+recoverable batch-finalization operation. До mutation journal сохраняет paths,
+hashes и exact backups обеих сторон; retry не создаёт duplicates, а stale
+generated handoff заменяется transactionally.
 ```
 
 ---
@@ -1320,13 +1374,13 @@ ERL-SOURCE-003
 
 ```text
 ERL-SOURCE-004
-.state/erl/staging/ может содержать copyrighted context excerpts
+<ZETTELKASTEN_HOME>/.state/erl/staging/ может содержать copyrighted context excerpts
 и по умолчанию не должен публиковаться.
 ```
 
 ```text
 ERL-SOURCE-005
-.state/erl/works/ хранит identities, mappings, hashes, UUID relations,
+<ZETTELKASTEN_HOME>/.state/erl/works/ хранит identities, mappings, hashes, UUID relations,
 sequence/lifecycle data и policy metadata, но не полные копии защищённого текста.
 ```
 
@@ -1386,7 +1440,8 @@ erl-classic-reduce-reconcile с explicit apply.
 
 ```text
 ERL-CHECK-001
-Все UUID из .state/erl/works/ должны существовать как соответствующие Vault documents,
+Все UUID из <ZETTELKASTEN_HOME>/.state/erl/works/ должны существовать как
+соответствующие documents в <ZETTELKASTEN_HOME>/notes/,
 если record не помечен как допустимая historical/tombstone relation.
 ```
 
@@ -1523,6 +1578,27 @@ manifest reference и active pointer каждой закрытой generation; c
 transaction manifest/result существует и достаточен для заявленного audit.
 ```
 
+```text
+ERL-CHECK-026
+erl-check проверяет canonical target-home layout и выдаёт
+HOME_LAYOUT_MIGRATION_REQUIRED при обнаружении nested vault/ без mutation.
+```
+
+```text
+ERL-CHECK-029
+erl-check read-only проверяет uniqueness, reciprocity, current Chapter tail,
+same-SOURCE_ID source-order adjacency, а также terminal/empty exceptions для
+Chapter chain handoff. Diagnostic содержит generation/source/Chapter/tail UUID.
+```
+
+```text
+ERL-CHECK-030
+erl-check read-only проверяет ERL-DOC-008 для каждой зарегистрированной card.
+Diagnostic содержит document UUID, recorded role и exact violated condition.
+Legacy audit выполняется через erl-card-content-repair --dry-run; mutation
+разрешена только с --apply, journal backup, hash conflict detection и rollback.
+```
+
 ---
 
 ## 20. Git and shell safety
@@ -1541,6 +1617,15 @@ ERL-GIT-002
 ```text
 ERL-GIT-003
 Migration schema .state/erl/works/ отделяется от обычного refactoring.
+```
+
+```text
+ERL-GIT-004
+ERL source repository и публикуемые skill distributions не содержат platform-
+или editor-generated metadata artifacts, включая .DS_Store. Repository ignore
+policy предотвращает их случайное добавление, а validation проверяет physical
+distribution tree независимо от Git tracking и сохраняет запрет существующих
+skill installation artifacts.
 ```
 
 ```text
@@ -1577,6 +1662,24 @@ ERL-SHELL-005
 «Тип», назначение и функция в поле «Назначение», closing separator.
 
 Формат separator: #------------------------------------------------------------------------------
+```
+
+```text
+ERL-TEST-001
+Каждый OpenSpec delta change с regression coverage имеет primary test
+tests/erl-<behavior-slug>.zsh. Behavioral slug получается заменой одного
+leading fix-/add-/change-/update-/migrate-/refactor-/implement- на erl-;
+без известного change-kind prefix erl- добавляется к полному change name.
+Дополнительные focused tests не заменяют primary test.
+```
+
+```text
+ERL-TEST-002
+Regression-test naming validation различает незавершённый change и change со
+всеми выполненными implementation tasks. Отсутствующий primary test не блокирует
+repository suite для change с невыполненными tasks, но является validation
+failure до признания change завершённым. Planning-only исключение не отменяет
+deterministic naming contract ERL-TEST-001.
 ```
 
 Предпочтительные инструменты:

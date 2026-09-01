@@ -50,8 +50,9 @@ if [[ -n "$completed" ]]; then
   data="$(jq -cn --arg extraction_id "$extraction_id" --argjson ordinal "$candidate_ordinal" --argjson completed "$completed" '{extraction_id:$extraction_id,candidate_ordinal:$ordinal,role:$completed.role,document_uuid:$completed.document_uuid,vocabulary_uuid:($completed.vocabulary_uuid//null),sequence_ordinal:$completed.sequence_ordinal}')"
   erl_emit ok ALREADY_INGESTED false "$data" '[]' 0
 fi
-lemma="$(jq -r .lemma <<< "$candidate")"; pos="$(jq -r .pos <<< "$candidate")"; lexical_type="$(jq -r .lexical_type <<< "$candidate")"
-identity="$(erl_normalize_identity "$lemma" "$pos" "$lexical_type")"; identity_key="$(erl_identity_key "$identity")"
+lemma_raw="$(jq -r .lemma <<< "$candidate")"; pos_raw="$(jq -r .pos <<< "$candidate")"; lexical_type_raw="$(jq -r .lexical_type <<< "$candidate")"
+identity="$(erl_normalize_identity "$lemma_raw" "$pos_raw" "$lexical_type_raw")"; identity_key="$(erl_identity_key "$identity")"
+lemma="$(erl_json_escape_asciidoc "$lemma_raw")"; pos="$(erl_json_escape_asciidoc "$pos_raw")"; lexical_type="$(erl_json_escape_asciidoc "$lexical_type_raw")"
 existing_vocabulary=""
 for candidate_generation in "$vault/.state/erl/works"/*/generations/*.json(N); do
   while IFS= read -r vocabulary_uuid; do
@@ -80,10 +81,10 @@ surface="$(jq -r .surface_form <<< "$candidate")"; context="$(erl_json_escape_as
 memo_fname="$(ZK_HOME="$vault" "$memo_constructor" "$surface" memo "$surface")" || erl_fail 50 error IO_ERROR "Canonical Memo constructor failed"
 document_uuid="${memo_fname%.adoc}"; document_file="$vault/notes/$memo_fname"
 if [[ "$role" == vocabulary ]]; then
-  translations="$(jq -r '.enrichment.translation_ru|join(", ")' <<< "$candidate")"
+  translations="$(erl_json_escape_asciidoc "$(jq -r '.enrichment.translation_ru|join(", ")' <<< "$candidate")")"
   definition="$(erl_json_escape_asciidoc "$(jq -r .enrichment.definition_en <<< "$candidate")")"
   ipa="$(erl_json_escape_asciidoc "$(jq -r .enrichment.ipa <<< "$candidate")")"
-  cefr="$(jq -r .enrichment.cefr.value <<< "$candidate")"
+  cefr="$(erl_json_escape_asciidoc "$(jq -r .enrichment.cefr.value <<< "$candidate")")"
   {
     print -r -- "== Lexical identity"; print -r -- ""; print -r -- "Lemma:: $lemma"; print -r -- "POS:: $pos"; print -r -- "Lexical type:: $lexical_type"
     print -r -- ""; print -r -- "== Meaning"; print -r -- ""; print -r -- "Definition:: $definition"; print -r -- "Translation:: $translations"; print -r -- "IPA:: $ipa"; print -r -- "CEFR:: $cefr"

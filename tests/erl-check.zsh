@@ -43,6 +43,12 @@ write_topic() {
 :docfilename: $generation.adoc
 :key-topic: English Reading
 
+== Book
+
+Title:: Example Book
+Reading topic:: English Reading
+
+This card is the reading hub for _Example Book_.
 " > "$fixture/notes/$generation.adoc"
 }
 
@@ -56,7 +62,10 @@ write_note() {
 :doclink: link:$chapter.adoc[Chapter 1]
 :docfilename: $chapter.adoc
 
-Text.
+== Source
+
+Book:: Example Book
+Chapter locator:: OEBPS/chapter-01.xhtml
 " > "$fixture/notes/$chapter.adoc"
 }
 
@@ -76,6 +85,11 @@ write_vocabulary() {
 Lemma:: forlorn
 POS:: adjective
 Lexical type:: word
+
+== Meaning
+
+Definition:: sad and lonely
+Translation:: покинутый
 " > "$fixture/notes/$vocabulary.adoc"
 }
 

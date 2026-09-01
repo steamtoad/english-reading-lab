@@ -121,6 +121,14 @@ topic_title="$key_topic - ключевая тема"
 generation_fname="$(ZK_HOME="$vault" "$topic_constructor" "$topic_title" "$key_topic" topic "$topic_title")" || { rollback_ingest; erl_fail 50 error IO_ERROR "Canonical Topic constructor failed"; }
 generation_uuid="${generation_fname%.adoc}"
 created_docs+=("$vault/notes/$generation_fname")
+{
+  print -r -- "== Book"
+  print -r -- ""
+  print -r -- "Title:: $(erl_json_escape_asciidoc "$title")"
+  print -r -- "Reading topic:: $(erl_json_escape_asciidoc "$key_topic")"
+  print -r -- ""
+  print -r -- "This card is the reading hub for _$(erl_json_escape_asciidoc "$title")_."
+} >> "$vault/notes/$generation_fname"
 journal_created_artifact "$vault/notes/$generation_fname" document || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot journal created Book Topic"; }
 jq --arg generation_uuid "$generation_uuid" '.generation_uuid=$generation_uuid' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot journal generation identity"; }
 chapter_records=()
@@ -135,8 +143,8 @@ if (( ! reuse_source )); then
     {
       print -r -- "== Source"
       print -r -- ""
-      print -r -- "Book:: $title"
-      print -r -- "Chapter locator:: $locator"
+      print -r -- "Book:: $(erl_json_escape_asciidoc "$title")"
+      print -r -- "Chapter locator:: $(erl_json_escape_asciidoc "$locator")"
     } >> "$vault/notes/$chapter_fname"
     journal_created_artifact "$vault/notes/$chapter_fname" document || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot journal created Chapter Note"; }
     chapter_records+=("$(jq -cn --arg chapter_uuid "$chapter_uuid" --arg source_id "$source_id" --arg locator "$locator" --argjson source_order "$source_order" '{chapter_uuid:$chapter_uuid,source_id:$source_id,chapter_locator:$locator,source_order:$source_order}')")

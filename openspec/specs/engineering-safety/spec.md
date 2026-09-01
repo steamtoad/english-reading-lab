@@ -113,3 +113,63 @@ Separator MUST иметь форму `#-----------------------------------------
 - **AND** header SHALL содержать полное имя файла
 - **AND** header SHALL содержать индивидуальные значения `Тип` и `Назначение`
 - **AND** opening и closing separators SHALL быть `#------------------------------------------------------------------------------`
+
+### Requirement: ERL-GIT-004 — Repository distributions exclude platform metadata artifacts
+
+ERL source repository и публикуемые skill distributions MUST NOT содержать platform- или editor-generated metadata artifacts, не являющиеся частью ERL source contract, включая `.DS_Store`.
+
+Repository ignore policy и validation workflow MUST предотвращать незаметное включение таких artifacts. Уже существующая проверка запрещённых skill installation artifacts MUST сохраняться.
+
+#### Scenario: ERL repository distribution is validated
+
+- **GIVEN** ERL repository или skill distribution подготовлены к validation
+- **WHEN** выполняется repository/distribution hygiene check
+- **THEN** platform/editor metadata artifacts SHALL отсутствовать
+- **AND** обнаруженный `.DS_Store` SHALL приводить к validation failure с указанием path
+
+#### Scenario: macOS creates ignored metadata locally
+
+- **WHEN** поддерживаемая platform создаёт `.DS_Store` в ERL working tree
+- **THEN** repository ignore policy SHALL исключать artifact из source distribution
+- **AND** canonical ERL source files SHALL оставаться неизменными
+
+#### Scenario: Other forbidden skill artifacts are checked
+
+- **WHEN** hygiene fix для `.DS_Store` применяется
+- **THEN** validation SHALL продолжать запрещать ранее распознаваемые skill installation artifacts
+- **AND** fix SHALL NOT ослаблять существующий distribution boundary
+
+### Requirement: ERL-TEST-002 — Primary regression gate учитывает lifecycle change
+
+ERL validation MUST различать незавершённый planning/implementation change и change, у которого все implementation tasks отмечены выполненными. Отсутствие `tests/erl-<behavior-slug>.zsh` MUST приводить к validation failure для завершённого change, но MUST NOT блокировать repository suite только из-за активного change с невыполненными tasks.
+
+Deterministic naming rule `ERL-TEST-001` MUST сохраняться. Planning-only исключение MUST NOT считаться освобождением от primary regression: до отметки всех tasks выполненными change MUST получить свой полноценный primary test.
+
+#### Scenario: Planning-only change ещё не имеет primary test
+
+- **GIVEN** active OpenSpec change содержит хотя бы одну невыполненную implementation task
+- **AND** derived primary regression test ещё отсутствует
+- **WHEN** выполняется repository regression-test naming validation
+- **THEN** отсутствие test SHALL NOT завершать repository suite ошибкой
+- **AND** change SHALL оставаться незавершённым
+
+#### Scenario: Completed change не имеет primary test
+
+- **GIVEN** все implementation tasks active OpenSpec change отмечены выполненными
+- **AND** derived primary regression test отсутствует
+- **WHEN** выполняется repository regression-test naming validation
+- **THEN** validation SHALL завершиться ошибкой
+- **AND** diagnostic SHALL содержать change name и ожидаемый test path
+
+#### Scenario: Completed change имеет правильно названный primary test
+
+- **GIVEN** все implementation tasks change отмечены выполненными
+- **AND** существует executable или source-controlled test `tests/erl-<behavior-slug>.zsh`
+- **WHEN** выполняется repository regression-test naming validation
+- **THEN** naming gate SHALL принять этот change
+
+#### Scenario: Additional test не заменяет primary regression
+
+- **GIVEN** completed change имеет дополнительные focused tests, но не имеет derived primary test
+- **WHEN** выполняется repository regression-test naming validation
+- **THEN** validation SHALL завершиться ошибкой отсутствующего primary test

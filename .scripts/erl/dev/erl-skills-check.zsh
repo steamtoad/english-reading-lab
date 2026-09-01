@@ -13,6 +13,7 @@ script_dir="${0:A:h}"
 erl_dir="${script_dir:h}"
 repo_root="${erl_dir:h:h}"
 skills_dir="${ERL_SKILLS_DIR:-${repo_root}/skills}"
+tests_dir="${ERL_TESTS_DIR:-${repo_root}/tests}"
 requirements_file="${ERL_REQUIREMENTS_FILE:-${erl_dir}/docs/requirements.md}"
 source_contract="${ERL_AGENT_CONTRACT_FILE:-${erl_dir}/docs/skill-contracts/erl-agent-contract-v1.md}"
 source_authorization="${ERL_AUTHORIZATION_FILE:-${erl_dir}/docs/skill-contracts/skill-authorization-policy-v1.md}"
@@ -63,11 +64,12 @@ while IFS= read -r shell_file; do
   [[ "$(sed -n '5p' "$shell_file")" == '# Тип: '* ]] || fail "$shell_file: missing header type"
   [[ "$(sed -n '6p' "$shell_file")" == '# Назначение: '* ]] || fail "$shell_file: missing header purpose"
   [[ "$(sed -n '7p' "$shell_file")" == '#------------------------------------------------------------------------------' ]] || fail "$shell_file: missing closing header separator"
-done < <(find "$erl_dir" "$repo_root/tests" -type f -exec awk 'FNR==1 && $0 ~ /^#!(\/bin\/zsh|\/usr\/bin\/env zsh)$/{print FILENAME}' {} +)
+done < <(find "$erl_dir" "$tests_dir" -type f -exec awk 'FNR==1 && $0 ~ /^#!(\/bin\/zsh|\/usr\/bin\/env zsh)$/{print FILENAME}' {} +)
 
 for command_name in \
   erl-book-ingest erl-chapter-export erl-extraction-stage erl-vocabulary-ingest \
-  erl-chapter-vocabulary-ingest erl-book-reduce erl-classic-reduce-reconcile erl-check; do
+  erl-chapter-vocabulary-ingest erl-book-reduce erl-classic-reduce-reconcile \
+  erl-home-layout-migrate erl-transaction-recover erl-state-migrate erl-work-rename erl-check; do
   [[ -x "${erl_dir}/${command_name}.zsh" ]] || fail "canonical executable is missing: ${erl_dir}/${command_name}.zsh"
   [[ ! -e "${erl_dir}/${command_name}" ]] || fail "extensionless executable is forbidden: ${erl_dir}/${command_name}"
 done

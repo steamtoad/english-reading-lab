@@ -29,8 +29,11 @@ staging_file="$(erl_extraction_file "$vault" "$extraction_id" 2>/dev/null)" || e
 generation="$(jq -r .generation_uuid "$staging_file")"; chapter="$(jq -r .chapter_uuid "$staging_file")"
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"
 if jq -e --arg extraction "$extraction_id" 'any(.ingestion_receipts[]?; .extraction_id==$extraction and .status=="completed")' "$generation_file" >/dev/null; then
-  data="$(jq -cn --arg extraction_id "$extraction_id" --arg chapter_uuid "$chapter" --arg generation_uuid "$generation" '{extraction_id:$extraction_id,chapter_uuid:$chapter_uuid,generation_uuid:$generation_uuid,receipt_status:"completed"}')"
-  erl_emit ok ALREADY_INGESTED false "$data" '[]' 0
+  handoff="$($script_dir/erl-chapter-chain-handoff.zsh --vault "$vault" --generation "$generation" --chapter "$chapter" --"$mode" --json)" || {
+    rc=$?; erl_fail "$rc" blocked "$(jq -r '.code // "RECOVERY_REQUIRED"' <<< "$handoff")" "Completed batch handoff requires recovery" "$(jq -cn --argjson handoff "$handoff" '{handoff:$handoff}')"
+  }
+  data="$(jq -cn --arg extraction_id "$extraction_id" --arg chapter_uuid "$chapter" --arg generation_uuid "$generation" --argjson handoff "$(jq '.data' <<< "$handoff")" '{extraction_id:$extraction_id,chapter_uuid:$chapter_uuid,generation_uuid:$generation_uuid,receipt_status:"completed",handoff:$handoff}')"
+  erl_emit ok ALREADY_INGESTED "$(jq -r '.changed' <<< "$handoff")" "$data" '[]' 0
 fi
 plans=()
 next_sequence_ordinal=$(( $(jq '[.sequence[]?.ordinal] | max // 0' "$generation_file") + 1 ))
@@ -42,7 +45,7 @@ while IFS= read -r ordinal; do
 done < <(jq -r '.candidates[].ordinal' "$staging_file")
 plan_array="$(printf '%s\n' "${plans[@]}" | jq -s 'sort_by(.candidate_ordinal)')"
 if [[ "$mode" == dry-run ]]; then
-  data="$(jq -cn --arg extraction_id "$extraction_id" --arg chapter_uuid "$chapter" --arg generation_uuid "$generation" --argjson plan "$plan_array" '{extraction_id:$extraction_id,chapter_uuid:$chapter_uuid,generation_uuid:$generation_uuid,plan:$plan,candidate_count:($plan|length),created_vocabulary:([$plan[]|select(.role=="vocabulary")]|length),created_occurrences:([$plan[]|select(.role=="occurrence")]|length),sequence_from:($plan|map(.prospective_sequence_ordinal)|min),sequence_to:($plan|map(.prospective_sequence_ordinal)|max)}')"
+  data="$(jq -cn --arg extraction_id "$extraction_id" --arg chapter_uuid "$chapter" --arg generation_uuid "$generation" --argjson plan "$plan_array" '{extraction_id:$extraction_id,chapter_uuid:$chapter_uuid,generation_uuid:$generation_uuid,plan:$plan,candidate_count:($plan|length),created_vocabulary:([$plan[]|select(.role=="vocabulary")]|length),created_occurrences:([$plan[]|select(.role=="occurrence")]|length),sequence_from:($plan|map(.prospective_sequence_ordinal)|min),sequence_to:($plan|map(.prospective_sequence_ordinal)|max),handoff:{phase:"after-candidate-commit",resolution:"source-order"}}')"
   erl_emit ok OK false "$data" '[]' 0
 fi
 
@@ -62,5 +65,7 @@ done < <(jq -r '.candidates[].ordinal' "$staging_file")
 generation_file="$(erl_find_generation_file "$vault" "$generation")"
 receipt_status="$(jq -r --arg extraction "$extraction_id" '.ingestion_receipts[]? | select(.extraction_id==$extraction) | .status' "$generation_file")"
 [[ "$receipt_status" == completed ]] || erl_fail 60 blocked RECOVERY_REQUIRED "Batch ended without a completed ingestion receipt"
-data="$(jq -cn --arg extraction_id "$extraction_id" --arg chapter_uuid "$chapter" --arg generation_uuid "$generation" --argjson created_vocabulary "$created_vocabulary" --argjson created_occurrences "$created_occurrences" --argjson sequence_from "${sequence_from:-null}" --argjson sequence_to "${sequence_to:-null}" '{extraction_id:$extraction_id,chapter_uuid:$chapter_uuid,generation_uuid:$generation_uuid,created_vocabulary:$created_vocabulary,created_occurrences:$created_occurrences,sequence_from:$sequence_from,sequence_to:$sequence_to,receipt_status:"completed"}')"
+if handoff="$($script_dir/erl-chapter-chain-handoff.zsh --vault "$vault" --generation "$generation" --chapter "$chapter" --apply --json)"; then rc=0; else rc=$?; fi
+(( rc == 0 )) || erl_fail "$rc" blocked "$(jq -r '.code // "RECOVERY_REQUIRED"' <<< "$handoff")" "Candidate receipts completed but Chapter handoff requires recovery" "$(jq -cn --argjson handoff "$handoff" '{handoff:$handoff}')"
+data="$(jq -cn --arg extraction_id "$extraction_id" --arg chapter_uuid "$chapter" --arg generation_uuid "$generation" --argjson created_vocabulary "$created_vocabulary" --argjson created_occurrences "$created_occurrences" --argjson sequence_from "${sequence_from:-null}" --argjson sequence_to "${sequence_to:-null}" --argjson handoff "$(jq '.data' <<< "$handoff")" '{extraction_id:$extraction_id,chapter_uuid:$chapter_uuid,generation_uuid:$generation_uuid,created_vocabulary:$created_vocabulary,created_occurrences:$created_occurrences,sequence_from:$sequence_from,sequence_to:$sequence_to,receipt_status:"completed",handoff:$handoff}')"
 erl_emit ok OK true "$data" '[]' 0

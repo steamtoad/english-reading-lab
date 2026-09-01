@@ -108,7 +108,7 @@ hashes_json="$(printf '%s\n' "${hash_rows[@]}" | jq -s 'unique_by(.path)|sort_by
 # Occurrence -> Vocabulary relations are hard dependencies handled by closure;
 # all other inbound links are explicitly reported as soft references.
 soft_rows=()
-for source_doc in "$vault/notes"/*.adoc(N) "$vault"/*.adoc(N); do
+for source_doc in "$vault/notes"/*.adoc(N); do
   erl_doc_deprecated "$source_doc" && continue
   source_uuid="${source_doc:t:r}"
   for target_uuid in "${(@k)target_role}"; do
