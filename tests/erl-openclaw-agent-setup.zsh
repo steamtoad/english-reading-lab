@@ -52,6 +52,8 @@ for rel in openclaw-workspace-state.json HEARTBEAT.md IDENTITY.md SOUL.md TOOLS.
   git -C "$workspace" check-ignore -q -- "$rel" || { print -ru2 -- "FAIL: managed artifact is not ignored: $rel"; exit 1; }
 done
 rg -qF "$workspace" "$workspace/TOOLS.md"
+rg -qF "Canonical Lexi Vault: \`$workspace\`" "$workspace/TOOLS.md"
+rg -qF "Pass \`--vault $workspace\` to every ERL command." "$workspace/TOOLS.md"
 rg -qF '**Name:** Саша' "$workspace/USER.md"
 rg -qF '**Timezone:** Europe/Sofia' "$workspace/USER.md"
 

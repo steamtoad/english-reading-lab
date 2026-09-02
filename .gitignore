@@ -8,6 +8,7 @@
 
 # Local canonical Vault and ERL state
 /vault/
+/notes/
 
 # macOS
 .DS_Store

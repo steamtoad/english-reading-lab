@@ -109,6 +109,8 @@ for skill_name in "${skill_names[@]}"; do
 
   rg -qF '${ERL_HOME}/.scripts/erl/<command>.zsh' "$reference_file" || \
     fail "$skill_name: common contract does not require the canonical .zsh executable suffix"
+  rg -qF 'pass `--vault "${ERL_HOME}"` to every ERL command' "$reference_file" || \
+    fail "$skill_name: common contract does not bind Lexi Vault to ERL_HOME"
   if rg -n '\$\{ERL_HOME\}/\.scripts/erl/<command>([^.]|$)' "$reference_file" >/dev/null; then
     fail "$skill_name: extensionless executable template in common contract"
   fi

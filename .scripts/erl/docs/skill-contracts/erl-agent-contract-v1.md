@@ -21,6 +21,7 @@ The only checker executable is `${ERL_HOME}/.scripts/erl/erl-check.zsh`.
 - Use ERL CLI with `--json`; validate schema version, command, process exit class,
   and one response envelope.
 - Never parse human-readable output.
+- For the Lexi workspace, pass `--vault "${ERL_HOME}"` to every ERL command. The ERL repository root is Lexi's canonical target Zettelkasten home; never substitute a user-level Zettelkasten checkout such as `~/zettelkasten`.
 - Treat `--vault` as target Zettelkasten home containing root `notes/` and `.state/erl/`; never pass its parent or a nested `vault/` directory.
 - Never write target-home documents or `.state/erl/works/` directly.
 - Never call `zcreate`, source `.scripts/zettelkasten/`, or create `:erl-*:` attributes.

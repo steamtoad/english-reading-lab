@@ -1,0 +1,38 @@
+{
+  "identity": "sha256:cc33ac9228df3cbc8fdf979271eb931ddb47a2c33bbe0f3012a6fb867ee40230",
+  "schema_version": 1,
+  "threshold": [
+    "C1",
+    "C2"
+  ],
+  "lexical_types": [
+    "word",
+    "phrase",
+    "phrasal_verb",
+    "idiom"
+  ],
+  "selection_rules": [
+    "Select chapter vocabulary that is useful for advanced English reading preparation.",
+    "Prefer first relevant occurrence of each lexical identity in source order.",
+    "Include lexical items whose meaning, register, idiomaticity, or collocation behavior may slow a B2 reader."
+  ],
+  "exclusions": [
+    "Exclude transparent proper names unless the usage is idiomatic or culturally important.",
+    "Exclude ordinary high-frequency words used in their most common sense.",
+    "Exclude duplicates already represented by the same normalized lemma, POS, and lexical type within the chapter."
+  ],
+  "proper_name_policy": "Include proper names only when they carry lexical, cultural, or idiomatic learning value.",
+  "uncertainty_policy": "If CEFR or sense is uncertain, keep the candidate only when context supports a useful reading card and mark uncertainty in enrichment.",
+  "enrichment_requirements": {
+    "ipa": true,
+    "translation_ru": true,
+    "definition_en": true,
+    "sense_gloss": true,
+    "cefr": true,
+    "register": true,
+    "rarity": true,
+    "labels": true,
+    "semantic_relations": true,
+    "collocations": true
+  }
+}
