@@ -24,7 +24,7 @@ for change_dir in "$repo/openspec/changes"/*(/N); do
   rg -q '^- \[[ xX]\] [0-9]+\.[0-9]+ ' "$tasks_file" || continue
   rg -q '^- \[ \] [0-9]+\.[0-9]+ ' "$tasks_file" && continue
 
-  behavior_slug="$(print -r -- "$change_name" | sed -E 's/^(fix|add|change|update|migrate|refactor|implement)-//')"
+  behavior_slug="$(print -r -- "$change_name" | sed -E 's/^(fix|add|change|update|migrate|refactor|implement|remove)-//')"
   expected_regression="$repo/tests/erl-$behavior_slug.zsh"
   [[ -f "$expected_regression" ]] || {
     print -ru2 -- "FAIL: OpenSpec change $change_name requires regression test ${expected_regression:t}"

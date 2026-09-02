@@ -69,8 +69,14 @@ touch "$fixture/repo/tests/erl-completed.zsh"
 for fixture_case in \
   'fix-alpha:erl-alpha.zsh' \
   'add-beta:erl-beta.zsh' \
-  'custom-gamma:erl-custom-gamma.zsh' \
-  'fix-add-delta:erl-add-delta.zsh'; do
+  'change-gamma:erl-gamma.zsh' \
+  'update-delta:erl-delta.zsh' \
+  'migrate-epsilon:erl-epsilon.zsh' \
+  'refactor-zeta:erl-zeta.zsh' \
+  'implement-eta:erl-eta.zsh' \
+  'remove-theta:erl-theta.zsh' \
+  'custom-iota:erl-custom-iota.zsh' \
+  'fix-add-kappa:erl-add-kappa.zsh'; do
   change_name="${fixture_case%%:*}"
   expected_test="${fixture_case#*:}"
   reset_fixture

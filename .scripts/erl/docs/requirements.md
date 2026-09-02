@@ -1753,9 +1753,10 @@ ERL-SHELL-005
 
 ```text
 ERL-TEST-001
-Каждый OpenSpec delta change с regression coverage имеет primary test
-tests/erl-<behavior-slug>.zsh. Behavioral slug получается заменой одного
-leading fix-/add-/change-/update-/migrate-/refactor-/implement- на erl-;
+Каждый ERL OpenSpec delta change имеет primary test
+tests/erl-<behavior-slug>.zsh. Behavioral slug получается удалением ровно одного
+leading fix-/add-/change-/update-/migrate-/refactor-/implement-/remove-, после
+чего добавляется erl-;
 без известного change-kind prefix erl- добавляется к полному change name.
 Дополнительные focused tests не заменяют primary test.
 ```
@@ -1765,8 +1766,10 @@ ERL-TEST-002
 Regression-test naming validation различает незавершённый change и change со
 всеми выполненными implementation tasks. Отсутствующий primary test не блокирует
 repository suite для change с невыполненными tasks, но является validation
-failure до признания change завершённым. Planning-only исключение не отменяет
-deterministic naming contract ERL-TEST-001.
+failure до признания change завершённым и блокирует archive. Diagnostic содержит
+change name и exact expected test path. Planning-only исключение не отменяет
+deterministic naming contract ERL-TEST-001: tasks каждой дельты явно требуют
+создать или обновить derived primary test и запустить его до completion.
 ```
 
 Предпочтительные инструменты:

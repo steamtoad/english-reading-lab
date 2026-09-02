@@ -627,6 +627,8 @@ canonical `.scripts/erl/<command>.zsh`, не extensionless wrapper.
 [ ] source books/copyright excerpts не попадают в public Git
 [ ] shellcheck/asciidoctor/git diff --check выполняются где применимо
 [ ] все ERL shell scripts/libraries имеют расширение .zsh; extensionless copies отсутствуют
+[ ] каждая ERL OpenSpec delta содержит task на derived primary regression test tests/erl-<behavior-slug>.zsh
+[ ] primary regression test текущей delta существует и успешно запущен до completion/archive
 ```
 
 ---
