@@ -26,7 +26,7 @@ done
 erl_require_command jq
 [[ -n "$mode" ]] || erl_usage_error "Select exactly one of --dry-run or --apply"
 [[ "$txid" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]] || erl_usage_error "--txid must be lowercase UUID v4"
-vault="$(erl_resolve_target_home "$vault_arg" allow-legacy)"; tx_dir="$vault/.state/erl/transactions/$txid"; tx_file="$tx_dir/transaction.json"
+vault="$(erl_resolve_target_home "$vault_arg" allow-legacy)"; erl_validate_target_root_role "$vault"; tx_dir="$vault/.state/erl/transactions/$txid"; tx_file="$tx_dir/transaction.json"
 [[ -f "$tx_file" ]] || erl_fail 20 error NOT_FOUND "Transaction not found: $txid"
 operation="$(jq -r '.operation // empty' "$tx_file")"; phase="$(jq -r '.phase // empty' "$tx_file")"
 [[ "$phase" != committed && "$phase" != rolled_back ]] || erl_emit ok ALREADY_RECOVERED false "$(jq -cn --arg txid "$txid" --arg phase "$phase" '{txid:$txid,phase:$phase}')" '[]' 0

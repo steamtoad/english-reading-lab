@@ -29,6 +29,7 @@ erl_require_command jq
 [[ -n "$generation" ]] || erl_usage_error "--generation is required"
 [[ -n "$mode" ]] || erl_usage_error "Select exactly one of --dry-run or --apply"
 vault="$(erl_resolve_vault "$vault_arg")"
+erl_validate_target_root_role "$vault"
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"
 work_id="$(jq -r .work_id "$generation_file")"; work_file="$(erl_find_work_file "$vault" "$work_id" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Work manifest not found"
 topic_file="$(erl_doc_path "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Book Topic not found: $generation"

@@ -32,6 +32,7 @@ erl_require_command jq
 [[ "$generation" =~ '^[0-9a-f-]{36}$' ]] || erl_usage_error "--generation must be a lowercase UUID"
 [[ -z "$chapter" || "$chapter" =~ '^[0-9a-f-]{36}$' ]] || erl_usage_error "--chapter must be a lowercase UUID"
 vault="$(erl_resolve_vault "$vault_arg")"
+erl_validate_target_root_role "$vault"
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"
 source_id="$(jq -r '.source_id // empty' "$generation_file")"
 source_file="$(erl_find_source_file "$vault" "$source_id" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Generation source is unavailable"

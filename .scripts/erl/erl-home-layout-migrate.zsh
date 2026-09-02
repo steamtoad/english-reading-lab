@@ -27,7 +27,7 @@ done
 erl_require_command jq
 [[ -n "$mode" ]] || erl_usage_error "Select exactly one of --dry-run or --apply"
 [[ -n "$home_arg" && -d "$home_arg" ]] || erl_fail 20 error NOT_FOUND "Target Zettelkasten home does not exist: $home_arg"
-home="${home_arg:A}"; legacy_root="$home/vault"
+home="${home_arg:A}"; erl_validate_target_root_role "$home"; legacy_root="$home/vault"
 [[ -d "$legacy_root/notes" || -d "$legacy_root/.state/erl" ]] || erl_fail 20 error NOT_FOUND "Legacy nested layout not found under: $legacy_root"
 
 typeset -a sources targets hashes collisions

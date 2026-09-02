@@ -31,6 +31,7 @@ erl_require_command jq
 [[ "$work_id" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]] || erl_usage_error "--work-id must be lowercase UUID v4"
 [[ "$new_slug" =~ '^[a-z0-9]+([a-z0-9-]*[a-z0-9])?$' ]] || erl_usage_error "--new-slug must contain lowercase letters, digits, and internal hyphens"
 vault="$(erl_resolve_vault "$vault_arg")"
+erl_validate_target_root_role "$vault"
 work_file="$(erl_find_work_file "$vault" "$work_id" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "WORK_ID not found: $work_id"
 old_dir="${work_file:h}"; old_slug="${old_dir:t}"; new_dir="${old_dir:h}/$new_slug"
 data="$(jq -cn --arg work_id "$work_id" --arg old_slug "$old_slug" --arg new_slug "$new_slug" --arg old_path "$old_dir" --arg new_path "$new_dir" '{work_id:$work_id,old_slug:$old_slug,new_slug:$new_slug,old_path:$old_path,new_path:$new_path}')"

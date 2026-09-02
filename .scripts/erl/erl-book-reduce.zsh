@@ -33,6 +33,7 @@ erl_require_command jq
 [[ -n "$mode" ]] || erl_usage_error "Select exactly one of --dry-run or --apply"
 [[ "$mode" == dry-run && -z "$plan_fingerprint" || "$mode" == apply && "$plan_fingerprint" =~ '^sha256:[0-9a-f]{64}$' ]] || erl_usage_error "--plan-fingerprint is required only with --apply"
 vault="$(erl_resolve_vault "$vault_arg")"
+erl_validate_target_root_role "$vault"
 
 # Block on unfinished journals and invalid pre-existing state.
 set +e; precheck="$(erl_run_check "$vault")"; precheck_rc=$?; set -e

@@ -1826,6 +1826,32 @@ setup в fresh checkout не зависит от наличия reference skills
 ```
 
 ```text
+ERL-AGENT-SETUP-009
+После resolution ERL_HOME каждый из семи Lexi runtime skills передаёт exact
+--vault "${ERL_HOME}" каждому ERL CLI invocation, включая dry-run, apply, export,
+staging и post-check. Host implementation root, пользовательский Zettelkasten,
+parent path и nested vault/ не могут подменять Lexi target Vault. Generated
+TOOLS.md, common reference copies и embedded setup payload соблюдают тот же contract.
+```
+
+```text
+ERL-ARCH-010
+Lexi target Vault, host implementation root и пользовательский Vault являются
+разными semantic roles. Текущий profile использует ERL_HOME=/Users/steamtoad/pub/english-reading-lab,
+ERL_HOST_HOME=/Users/steamtoad/dev/zettelkasten-cli и запрещает
+/Users/steamtoad/zettelkasten как Lexi --vault, ERL_HOME, ERL_HOST_HOME или host_root.
+Invalid, equal, swapped, forbidden или drifted roots блокируют operation до mutation.
+```
+
+```text
+ERL-AGENT-SETUP-012
+Lexi setup materializes и проверяет explicit target/host/user root roles. Stale
+target-home host contract заменяется только через reviewed --replace-managed
+--apply с byte-exact backup, journal, atomic publication, post-check и rollback
+либо recovery-required status; default dry-run/check не изменяет configuration.
+```
+
+```text
 OS-ARCHIVE-001
 OpenSpec Change архивируется только после завершения implementation, verification
 и specification validation. Любое незавершённое условие блокирует archive.

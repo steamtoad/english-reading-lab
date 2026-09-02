@@ -37,6 +37,7 @@ if [[ -n "$document_uuid" && ! "$document_uuid" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-
 fi
 erl_require_command jq
 vault="$(erl_resolve_vault "$vault_arg")"
+erl_validate_target_root_role "$vault"
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/erl-card-repair.XXXXXX")" || erl_fail 50 error IO_ERROR "Cannot allocate audit workspace"
 trap 'rm -rf -- "$tmp_dir"' EXIT HUP INT TERM
 

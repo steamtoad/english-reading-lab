@@ -40,8 +40,11 @@ erl_require_command jq
 [[ -n "$policy_file" && -f "$policy_file" ]] || erl_fail 20 error NOT_FOUND "Policy file not found: $policy_file"
 erl_policy_validate "$policy_file" || erl_fail 10 error VALIDATION_FAILED "Policy does not satisfy extraction-policy-v1 or identity hash mismatch"
 vault="$(erl_resolve_vault "$vault_arg")"
-topic_constructor="$(erl_host_object_command "$vault" topic-create.zsh)" || erl_fail 50 error HOST_CONTRACT_UNAVAILABLE "Target host does not provide executable .scripts/objects/topic-create.zsh"
-note_constructor="$(erl_host_object_command "$vault" note-create.zsh)" || erl_fail 50 error HOST_CONTRACT_UNAVAILABLE "Target host does not provide executable .scripts/objects/note-create.zsh"
+erl_validate_target_root_role "$vault"
+erl_require_host_object_command "$vault" topic-create.zsh
+topic_constructor="$REPLY"
+erl_require_host_object_command "$vault" note-create.zsh
+note_constructor="$REPLY"
 source_file="${source_file:A}"
 fingerprint="$(erl_sha256_file "$source_file")"
 chapters="$(erl_source_chapters "$source_file")" || erl_fail 10 error INVALID_INPUT "Unsupported or unreadable source book: $source_file"

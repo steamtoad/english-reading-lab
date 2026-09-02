@@ -137,26 +137,79 @@ erl_find_source_file() {
   return 1
 }
 
-erl_host_root() {
-  local vault="$1" configured="" descriptor="$vault/.state/erl/host-contract.json"
-  if [[ -n "${ERL_HOST_HOME:-}" ]]; then
-    configured="${ERL_HOST_HOME:A}"
-  elif [[ -f "$descriptor" ]]; then
-    configured="$(jq -r '.host_root // empty' "$descriptor" 2>/dev/null)"
-    [[ "$configured" == /* ]] || return 1
-  elif [[ -d "$vault/.scripts/objects" ]]; then
-    configured="$vault"
+erl_root_forbidden() {
+  local vault="$1" candidate="$2" forbidden canonical
+  local descriptor="$vault/.state/erl/host-contract.json"
+  typeset -a forbidden_roots=(/Users/steamtoad/zettelkasten)
+  [[ -n "${ERL_FORBIDDEN_HOME:-}" ]] && forbidden_roots+=("$ERL_FORBIDDEN_HOME")
+  if [[ -f "$descriptor" ]]; then
+    forbidden_roots+=("${(@f)$(jq -r '.forbidden_roots[]? // empty' "$descriptor" 2>/dev/null)}")
   fi
-  [[ -n "$configured" && -d "$configured/.scripts/objects" ]] || return 1
-  print -r -- "$configured"
+  for forbidden in "${forbidden_roots[@]}"; do
+    [[ "$forbidden" == /* ]] || continue
+    canonical="${forbidden:A}"
+    [[ "$candidate" == "$canonical" ]] && return 0
+  done
+  return 1
 }
 
-erl_host_object_command() {
+erl_validate_target_root_role() {
+  local target="$1" configured_host="" descriptor_host=""
+  local descriptor="$target/.state/erl/host-contract.json"
+  erl_root_forbidden "$target" "$target" && \
+    erl_fail 30 blocked FORBIDDEN_ROOT "Target Vault is assigned to a forbidden user-data root: $target"
+  if [[ -n "${ERL_HOST_HOME:-}" ]]; then
+    [[ "$ERL_HOST_HOME" == /* ]] || erl_fail 10 error INVALID_INPUT "ERL_HOST_HOME must be an absolute path"
+    configured_host="${ERL_HOST_HOME:A}"
+  fi
+  if [[ -f "$descriptor" ]]; then
+    descriptor_host="$(jq -r '.host_root // empty' "$descriptor" 2>/dev/null)"
+    [[ -z "$descriptor_host" || "$descriptor_host" == /* ]] || \
+      erl_fail 10 error INVALID_INPUT "host-contract host_root must be an absolute path"
+    [[ -z "$descriptor_host" ]] || descriptor_host="${descriptor_host:A}"
+  fi
+  [[ "$configured_host" != "$target" && "$descriptor_host" != "$target" ]] || \
+    erl_fail 30 blocked ROOT_ROLE_CONFLICT "Target Vault and host implementation root must be different: $target"
+}
+
+erl_resolve_host_root() {
+  local vault="$1" configured="" descriptor_root="" host_root=""
+  local descriptor="$vault/.state/erl/host-contract.json"
+  if [[ -n "${ERL_HOST_HOME:-}" ]]; then
+    [[ "$ERL_HOST_HOME" == /* ]] || erl_fail 10 error INVALID_INPUT "ERL_HOST_HOME must be an absolute path"
+    configured="${ERL_HOST_HOME:A}"
+  fi
+  if [[ -f "$descriptor" ]]; then
+    jq -e '.version == 1 and (.host_root | type == "string") and (.forbidden_roots == null or (.forbidden_roots | type == "array" and all(.[]; type == "string")))' \
+      "$descriptor" >/dev/null 2>&1 || erl_fail 10 error INVALID_INPUT "Invalid target-home host contract: $descriptor"
+    descriptor_root="$(jq -r '.host_root' "$descriptor")"
+    [[ "$descriptor_root" == /* ]] || erl_fail 10 error INVALID_INPUT "host-contract host_root must be an absolute path"
+    descriptor_root="${descriptor_root:A}"
+  fi
+  if [[ -n "$configured" && -n "$descriptor_root" && "$configured" != "$descriptor_root" ]]; then
+    erl_fail 30 blocked HOST_ROOT_CONFIG_DRIFT \
+      "ERL_HOST_HOME and target-home host contract resolve different host roots" \
+      "$(jq -cn --arg configured "$configured" --arg descriptor "$descriptor_root" '{erl_host_home:$configured,descriptor_host_root:$descriptor}')"
+  fi
+  host_root="${configured:-$descriptor_root}"
+  [[ -n "$host_root" ]] || erl_fail 50 error HOST_CONTRACT_UNAVAILABLE "Host implementation root is not configured; use ERL_HOST_HOME or target-home host contract"
+  erl_root_forbidden "$vault" "$host_root" && \
+    erl_fail 30 blocked FORBIDDEN_ROOT "Host implementation is assigned to a forbidden user-data root: $host_root"
+  [[ "$host_root" != "$vault" ]] || \
+    erl_fail 30 blocked ROOT_ROLE_CONFLICT "Target Vault and host implementation root must be different: $vault"
+  [[ -d "$host_root/.scripts/objects" ]] || \
+    erl_fail 50 error HOST_CONTRACT_UNAVAILABLE "Host root does not provide .scripts/objects/: $host_root"
+  REPLY="$host_root"
+}
+
+erl_require_host_object_command() {
   local vault="$1" command_name="$2" host_root command_path
-  host_root="$(erl_host_root "$vault")" || return 1
+  erl_resolve_host_root "$vault"
+  host_root="$REPLY"
   command_path="$host_root/.scripts/objects/$command_name"
-  [[ -f "$command_path" && -x "$command_path" ]] || return 1
-  print -r -- "$command_path"
+  [[ -f "$command_path" && -x "$command_path" ]] || \
+    erl_fail 50 error HOST_CONTRACT_UNAVAILABLE "Host root does not provide executable .scripts/objects/$command_name"
+  REPLY="$command_path"
 }
 
 erl_chapter_source_order() {

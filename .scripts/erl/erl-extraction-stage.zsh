@@ -31,6 +31,7 @@ if [[ "$input" == - ]]; then tmp_input="$(mktemp "${TMPDIR:-/tmp}/erl-stage.XXXX
 [[ -f "$input" ]] || erl_fail 20 error NOT_FOUND "Input file not found: $input"
 erl_candidate_payload_validate "$input" || erl_fail 10 error VALIDATION_FAILED "Candidate payload does not satisfy vocabulary-candidate-v1"
 vault="$(erl_resolve_vault "$vault_arg")"
+erl_validate_target_root_role "$vault"
 generation="$(jq -r .generation_uuid "$input")"; chapter="$(jq -r .chapter_uuid "$input")"; policy_identity="$(jq -r .policy_identity "$input")"
 input_source_id="$(jq -r .source_identity.source_id "$input")"; input_source_fingerprint="$(jq -r .source_identity.source_fingerprint "$input")"
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"

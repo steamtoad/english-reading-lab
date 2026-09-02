@@ -25,6 +25,7 @@ done
 erl_require_command jq
 [[ -n "$mode" ]] || erl_usage_error "Select exactly one of --dry-run or --apply"
 vault="$(erl_resolve_vault "$vault_arg")"
+erl_validate_target_root_role "$vault"
 staging_file="$(erl_extraction_file "$vault" "$extraction_id" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Staged extraction not found: $extraction_id"
 generation="$(jq -r .generation_uuid "$staging_file")"; chapter="$(jq -r .chapter_uuid "$staging_file")"
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"

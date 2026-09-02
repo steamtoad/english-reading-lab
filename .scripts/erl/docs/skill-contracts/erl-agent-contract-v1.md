@@ -16,6 +16,14 @@ them, stop and report the conflict.
 
 The only checker executable is `${ERL_HOME}/.scripts/erl/erl-check.zsh`.
 
+## Root role separation
+
+- `ERL_HOME` is the Lexi workspace and target Vault; every command receives `--vault "${ERL_HOME}"`.
+- `ERL_HOST_HOME` is a different absolute root used only for canonical object constructors.
+- The current Lexi profile uses `ERL_HOME=/Users/steamtoad/pub/english-reading-lab` and `ERL_HOST_HOME=/Users/steamtoad/dev/zettelkasten-cli`.
+- `/Users/steamtoad/zettelkasten` is a forbidden user-data root for both Lexi Vault and ERL host implementation roles.
+- Before an ERL operation, require canonical distinct roots, matching environment/descriptor configuration, and role-specific markers. Stop before mutation on forbidden, equal, swapped, or drifted roots.
+
 ## Runtime boundary
 
 - Use ERL CLI with `--json`; validate schema version, command, process exit class,

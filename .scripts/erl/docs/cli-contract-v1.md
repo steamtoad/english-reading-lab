@@ -25,13 +25,26 @@ host .scripts/objects/
 
 Host contract разрешается независимо от ERL source root в порядке:
 
-1. explicit `ERL_HOST_HOME`;
-2. absolute `host_root` из `<ZETTELKASTEN_HOME>/.state/erl/host-contract.json`;
-3. `.scripts/objects/` самого target Zettelkasten home/host root.
+1. explicit absolute `ERL_HOST_HOME`;
+2. absolute `host_root` из `<ZETTELKASTEN_HOME>/.state/erl/host-contract.json`.
+
+Если присутствуют оба источника, они MUST разрешаться в один canonical path;
+иначе команда завершается `HOST_ROOT_CONFIG_DRIFT`. Target Vault и host root
+MUST быть различными и соответствовать role markers. Paths из optional
+`forbidden_roots` descriptor либо `ERL_FORBIDDEN_HOME` не принимаются ни как
+target, ни как host root.
 
 Repository-relative fallback к ERL-owned `.scripts/objects/` запрещён. Если
 обязательный executable host contract отсутствует, команда завершается с
 `HOST_CONTRACT_UNAVAILABLE` до первой mutation.
+
+Current Lexi profile:
+
+```text
+ERL_HOME=/Users/steamtoad/pub/english-reading-lab
+ERL_HOST_HOME=/Users/steamtoad/dev/zettelkasten-cli
+forbidden user Vault=/Users/steamtoad/zettelkasten
+```
 
 CLI не выполняет model inference.
 

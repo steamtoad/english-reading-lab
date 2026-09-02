@@ -26,7 +26,7 @@ done
 erl_require_command jq
 [[ -n "$mode" ]] || erl_usage_error "Select exactly one of --dry-run or --apply"
 [[ "$work_id" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]] || erl_usage_error "--work-id must be lowercase UUID v4"
-vault="$(erl_resolve_vault "$vault_arg")"; work_file="$(erl_find_work_file "$vault" "$work_id" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "WORK_ID not found: $work_id"; work_dir="${work_file:h}"
+vault="$(erl_resolve_vault "$vault_arg")"; erl_validate_target_root_role "$vault"; work_file="$(erl_find_work_file "$vault" "$work_id" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "WORK_ID not found: $work_id"; work_dir="${work_file:h}"
 source_files=(); chapter_updates=0
 for source_file in "$work_dir/sources"/*.json(N); do
   source_id="$(jq -r .source_id "$source_file")"

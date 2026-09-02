@@ -28,6 +28,7 @@ erl_require_command jq
 [[ -n "$mode" ]] || erl_usage_error "Select exactly one of --dry-run or --apply"
 [[ "$generation" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' ]] || erl_usage_error "--generation must be UUID"
 vault="$(erl_resolve_vault "$vault_arg")"
+erl_validate_target_root_role "$vault"
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"
 work_id="$(jq -r .work_id "$generation_file")"; work_file="$(erl_find_work_file "$vault" "$work_id" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Work manifest not found: $work_id"
 [[ "$(jq -r '.active_generation_uuid // empty' "$work_file")" == "$generation" ]] || erl_fail 30 error STATE_CONFLICT "Migration target must be the active Book generation"

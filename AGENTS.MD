@@ -39,6 +39,18 @@ English Reading Lab = отдельный plugin/domain workflow
 
 ERL адаптируется к Vault. ERL-specific semantics не должны протекать в canonical AsciiDoc metadata или core implementation.
 
+Lexi local runtime использует разделённые roots:
+
+```text
+ERL_HOME=/Users/steamtoad/pub/english-reading-lab
+ERL_HOST_HOME=/Users/steamtoad/dev/zettelkasten-cli
+forbidden user Vault=/Users/steamtoad/zettelkasten
+```
+
+Пользовательский Vault не является ни Lexi target, ни ERL host implementation.
+Каждый из семи Lexi runtime skills передаёт каждому ERL CLI invocation exact
+`--vault "${ERL_HOME}"`; это правило применяется также к dry-run и post-check.
+
 ---
 
 ## 1. Repository write boundary

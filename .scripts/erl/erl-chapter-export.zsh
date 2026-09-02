@@ -27,6 +27,7 @@ done
 erl_require_command jq
 [[ -n "$generation" && -n "$chapter" ]] || erl_usage_error "--generation and --chapter are required"
 vault="$(erl_resolve_vault "$vault_arg")"
+erl_validate_target_root_role "$vault"
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"
 [[ "$(jq -r '.status // "active"' "$generation_file")" == active ]] || erl_fail 40 blocked GENERATION_CLOSED_EXTERNALLY "Generation is not active: $generation"
 work_id="$(jq -r .work_id "$generation_file")"; source_id="$(jq -r '.source_id // empty' "$generation_file")"

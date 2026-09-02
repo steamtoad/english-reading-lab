@@ -111,6 +111,20 @@ for skill_name in "${skill_names[@]}"; do
     fail "$skill_name: common contract does not require the canonical .zsh executable suffix"
   rg -qF 'pass `--vault "${ERL_HOME}"` to every ERL command' "$reference_file" || \
     fail "$skill_name: common contract does not bind Lexi Vault to ERL_HOME"
+  rg -qF 'Pass exact `--vault "${ERL_HOME}"` to every ERL CLI invocation' "$skill_file" || \
+    fail "$skill_name: runtime workflow does not pass exact --vault ERL_HOME"
+  rg -qF '`ERL_HOST_HOME` is a different absolute root used only for canonical object constructors.' "$reference_file" || \
+    fail "$skill_name: common contract does not separate ERL_HOST_HOME from the target Vault"
+  rg -qF '`/Users/steamtoad/zettelkasten` is a forbidden user-data root' "$reference_file" || \
+    fail "$skill_name: common contract does not forbid the user Vault as a runtime root"
+  if rg -n 'ERL_(HOME|HOST_HOME)=/Users/steamtoad/zettelkasten|--vault[ `"]+/Users/steamtoad/zettelkasten|host_root[`: =]+/Users/steamtoad/zettelkasten' \
+    "$skill_file" "$reference_file" >/dev/null; then
+    fail "$skill_name: user Vault is assigned to a Lexi target or host role"
+  fi
+  if rg -n -- '--vault[[:space:]`"]+"?\$\{ERL_HOST_HOME\}|--vault[[:space:]`"]+"?\$\{ERL_HOME\}(/vault|/\.\.|:h)' \
+    "$skill_file" "$reference_file" >/dev/null; then
+    fail "$skill_name: runtime workflow substitutes host, parent, or nested path for --vault ERL_HOME"
+  fi
   if rg -n '\$\{ERL_HOME\}/\.scripts/erl/<command>([^.]|$)' "$reference_file" >/dev/null; then
     fail "$skill_name: extensionless executable template in common contract"
   fi

@@ -31,7 +31,9 @@ erl_require_command jq
 [[ "$extraction_id" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' ]] || erl_fail 10 error INVALID_INPUT "EXTRACTION_ID must be lowercase UUID v4"
 [[ "$candidate_ordinal" == <-> && "$candidate_ordinal" -ge 1 ]] || erl_fail 10 error INVALID_INPUT "Candidate ordinal must be a positive integer"
 vault="$(erl_resolve_vault "$vault_arg")"
-memo_constructor="$(erl_host_object_command "$vault" memo-create.zsh)" || erl_fail 50 error HOST_CONTRACT_UNAVAILABLE "Target host does not provide executable .scripts/objects/memo-create.zsh"
+erl_validate_target_root_role "$vault"
+erl_require_host_object_command "$vault" memo-create.zsh
+memo_constructor="$REPLY"
 staging_file="$(erl_extraction_file "$vault" "$extraction_id" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Staged extraction not found: $extraction_id"
 candidate="$(jq -c --argjson ordinal "$candidate_ordinal" '.candidates[]? | select(.ordinal==$ordinal)' "$staging_file")"
 [[ -n "$candidate" ]] || erl_fail 20 error NOT_FOUND "Candidate ordinal not found: $candidate_ordinal"
