@@ -1772,6 +1772,37 @@ deterministic naming contract ERL-TEST-001: tasks каждой дельты яв
 создать или обновить derived primary test и запустить его до completion.
 ```
 
+```text
+OS-ARCHIVE-001
+OpenSpec Change архивируется только после завершения implementation, verification
+и specification validation. Любое незавершённое условие блокирует archive.
+```
+
+```text
+OS-ARCHIVE-002
+Все applicable delta specifications синхронизируются в canonical
+openspec/specs/ до признания archive завершённым; canonical baseline после
+синхронизации проходит validation.
+```
+
+```text
+OS-ARCHIVE-003
+Archive сохраняет полный Change: proposal, design, tasks и все applicable delta
+specifications под openspec/changes/archive/.
+```
+
+```text
+OS-ARCHIVE-004
+Archived delta specifications являются только historical records и не
+используются как current source of truth.
+```
+
+```text
+OS-ARCHIVE-005
+openspec/specs/ является единственным source of truth текущих system requirements;
+active и archived Change artifacts не заменяют canonical baseline.
+```
+
 Предпочтительные инструменты:
 
 ```text
@@ -1780,7 +1811,25 @@ zsh git grep rg fd fzf awk sed jq yq uuidgen asciidoctor shellcheck vim
 
 ---
 
-## 21. Canonical invariants
+## 21. OpenSpec archive governance
+
+Pre-archive readiness проверяется ERL development checker после завершения tasks:
+
+```bash
+.scripts/erl/dev/erl-openspec-archive-check.zsh --pre --change CHANGE_NAME
+```
+
+После штатного `openspec archive` проверяются archive completeness,
+delta-to-baseline synchronization и canonical validation:
+
+```bash
+.scripts/erl/dev/erl-openspec-archive-check.zsh --post \
+  --archive openspec/changes/archive/YYYY-MM-DD-CHANGE_NAME
+```
+
+---
+
+## 22. Canonical invariants
 
 ```text
 Vault document

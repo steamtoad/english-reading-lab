@@ -10,6 +10,16 @@
 При расхождении implementation сверяется с OpenSpec; изменение baseline
 выполняется через OpenSpec workflow и `openspec validate --all`.
 
+OpenSpec archive допускается только после successful preflight:
+
+```text
+.scripts/erl/dev/erl-openspec-archive-check.zsh --pre --change CHANGE_NAME
+```
+
+После `openspec archive` обязательно выполнить postcondition check с exact
+archive path. Current requirements всегда читаются только из `openspec/specs/`;
+active и archived deltas служат change planning/history и не заменяют baseline.
+
 Главная архитектурная граница:
 
 ```text
@@ -629,6 +639,8 @@ canonical `.scripts/erl/<command>.zsh`, не extensionless wrapper.
 [ ] все ERL shell scripts/libraries имеют расширение .zsh; extensionless copies отсутствуют
 [ ] каждая ERL OpenSpec delta содержит task на derived primary regression test tests/erl-<behavior-slug>.zsh
 [ ] primary regression test текущей delta существует и успешно запущен до completion/archive
+[ ] archive preflight подтвердил completed tasks, primary test и strict change validation
+[ ] archive postcondition подтвердил полный archive, delta synchronization и canonical validation
 ```
 
 ---
