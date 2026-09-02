@@ -4,6 +4,30 @@
 
 Нормативные требования: `.scripts/erl/docs/requirements.md`.
 
+Локальный OpenClaw workspace Lexi разворачивается из versioned self-contained
+setup script. По умолчанию команда только показывает план:
+
+```bash
+.scripts/erl/dev/erl-openclaw-agent-setup.zsh \
+  --workspace "$PWD" --user-name Саша --timezone Europe/Sofia
+```
+
+Изменения требуют `--apply`; проверка уже развёрнутого payload выполняется через
+`--check`. Managed conflict не перезаписывается без отдельного
+`--replace-managed --apply`. Setup не устанавливает OpenClaw, не регистрирует
+agent/channel bindings и не изменяет credentials или global configuration.
+
+Перед завершением или архивированием setup change embedded skills сверяются с
+текущим эталонным Lexi workspace:
+
+```bash
+.scripts/erl/dev/erl-openclaw-agent-setup.zsh \
+  --check-reference-skills "$PWD/skills"
+```
+
+Это development gate; обычный bootstrap с чистого листа не требует исходной
+папки `skills/`.
+
 ---
 
 # Русский

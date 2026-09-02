@@ -1773,6 +1773,59 @@ deterministic naming contract ERL-TEST-001: tasks каждой дельты яв
 ```
 
 ```text
+ERL-AGENT-SETUP-001
+Tracked .scripts/erl/dev/erl-openclaw-agent-setup.zsh является self-contained
+versioned source of truth для ignored локального OpenClaw workspace Lexi и не
+зависит от уже materialized agent files.
+```
+
+```text
+ERL-AGENT-SETUP-002
+Successful setup materializes root agent files, Lexi runtime documentation и
+ровно семь поддерживаемых ERL runtime skills вместе с required references.
+```
+
+```text
+ERL-AGENT-SETUP-003
+Workspace path, user name и timezone задаются явно или разрешаются локально;
+payload не содержит credentials, tokens, session history, channel bindings и
+не изменяет global OpenClaw configuration.
+```
+
+```text
+ERL-AGENT-SETUP-004
+Default setup выполняет non-mutating dry-run, --check выполняет non-mutating
+integrity validation, а mutation разрешена только через explicit --apply.
+```
+
+```text
+ERL-AGENT-SETUP-005
+Apply idempotent, сохраняет совпадающие files без rewrite и блокирует conflicts.
+Replacement допускается только через --replace-managed --apply после backup;
+unknown target files не удаляются.
+```
+
+```text
+ERL-AGENT-SETUP-006
+Setup prevalidates staging, журналирует mutation, выполняет reverse rollback при
+failure и публикует completed openclaw-workspace-state.json последним.
+```
+
+```text
+ERL-AGENT-SETUP-007
+Materialized Lexi infrastructure остаётся ignored, проходит manifest/hash,
+skill/reference, distribution-artifact и safety-policy validation.
+```
+
+```text
+ERL-AGENT-SETUP-008
+Embedded skill payload проходит development synchronization с текущими
+reference Lexi skills по exact relative file set и byte-exact content. Missing,
+extra, changed и symlink paths блокируют Change completion и archive. Runtime
+setup в fresh checkout не зависит от наличия reference skills directory.
+```
+
+```text
 OS-ARCHIVE-001
 OpenSpec Change архивируется только после завершения implementation, verification
 и specification validation. Любое незавершённое условие блокирует archive.

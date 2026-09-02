@@ -60,6 +60,12 @@ if [[ "$phase" == pre ]]; then
   primary_test="$repo/tests/erl-$behavior_slug.zsh"
   [[ -f "$primary_test" && -x "$primary_test" ]] || fail "missing executable primary regression test: ${primary_test:t}"
   "$primary_test" >/dev/null || fail "primary regression test failed: ${primary_test:t}"
+  if [[ "$change_name" == add-openclaw-agent-setup ]]; then
+    setup_checker="$repo/.scripts/erl/dev/erl-openclaw-agent-setup.zsh"
+    [[ -x "$setup_checker" ]] || fail 'OpenClaw agent setup synchronization checker is missing'
+    "$setup_checker" --check-reference-skills "$repo/skills" >/dev/null || \
+      fail 'embedded Lexi skills differ from reference skills'
+  fi
   (cd "$repo" && openspec validate "$change_name" --strict >/dev/null) || fail "strict specification validation failed: $change_name"
   print -r -- "PASS: OpenSpec archive readiness: $change_name"
   exit 0

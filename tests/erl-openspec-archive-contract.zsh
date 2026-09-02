@@ -70,6 +70,21 @@ sed -i.bak 's/- \[ \]/- [x]/' "$fixture/repo/openspec/changes/add-fixture/tasks.
 rm -f -- "$fixture/repo/openspec/changes/add-fixture/tasks.md.bak" "$fixture/repo/tests/erl-fixture.zsh"
 expect_failure 'missing executable primary regression test' --repo "$fixture/repo" --pre --change add-fixture
 
+# Agent setup archive readiness additionally requires reference-skill synchronization.
+make_repo add-openclaw-agent-setup erl-openclaw-agent-setup.zsh
+mkdir -p "$fixture/repo/.scripts/erl/dev" "$fixture/repo/skills"
+print -r -- '#!/bin/zsh
+if [[ "$1" == --check-reference-skills ]]; then
+  exit 10
+fi
+exit 0' > "$fixture/repo/.scripts/erl/dev/erl-openclaw-agent-setup.zsh"
+chmod +x "$fixture/repo/.scripts/erl/dev/erl-openclaw-agent-setup.zsh"
+expect_failure 'embedded Lexi skills differ from reference skills' \
+  --repo "$fixture/repo" --pre --change add-openclaw-agent-setup
+print -r -- '#!/bin/zsh
+exit 0' > "$fixture/repo/.scripts/erl/dev/erl-openclaw-agent-setup.zsh"
+PATH="$fixture/bin:$PATH" "$checker" --repo "$fixture/repo" --pre --change add-openclaw-agent-setup >/dev/null
+
 # Post-archive validation requires complete history and synchronized canonical requirements.
 make_repo add-fixture erl-fixture.zsh
 archive="$fixture/repo/openspec/changes/archive/2026-09-02-add-fixture"

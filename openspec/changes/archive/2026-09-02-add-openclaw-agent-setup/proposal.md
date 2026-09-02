@@ -8,6 +8,7 @@
 - Включить в versioned payload script все текущие agent-owned ignored artifacts: `openclaw-workspace-state.json`, `HEARTBEAT.md`, `IDENTITY.md`, `SOUL.md`, `TOOLS.md`, `USER.md`, полный `skills/` и `.scripts/erl/docs/lexi-agent.md`.
 - Параметризовать machine/user-specific значения, включая workspace path, user name и timezone; не включать credentials, tokens, session history или channel bindings.
 - Добавить dry-run/check/apply contract, deterministic manifest и content hashes, idempotent повторный запуск, conflict detection, backup и rollback.
+- Зафиксировать текущий полный набор Lexi skills как reference payload и блокировать завершение/обновление embedded payload при расхождении file set или bytes с этим эталоном.
 - После apply проверять полноту workspace, семь Lexi runtime skills, reference-contract consistency и отсутствие запрещённых capabilities.
 - Оставить перечисленные materialized artifacts в `.gitignore`: versioned source of truth находится внутри setup script, локальные копии остаются runtime infrastructure.
 

@@ -39,6 +39,7 @@ done < <(find "$repo/.scripts/erl" "$repo/tests" -type f -name '*.zsh' | sort)
 "$repo/tests/erl-delta-primary-test-contract.zsh"
 "$repo/tests/erl-delta-test-naming-gate.zsh"
 "$repo/tests/erl-openspec-archive-contract.zsh"
+"$repo/tests/erl-openclaw-agent-setup.zsh"
 "$repo/tests/erl-target-home-layout.zsh"
 "$repo/tests/erl-human-readable-card-content.zsh"
 "$repo/tests/erl-chapter-chain-handoff.zsh"

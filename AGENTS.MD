@@ -20,6 +20,15 @@ OpenSpec archive допускается только после successful prefl
 archive path. Current requirements всегда читаются только из `openspec/specs/`;
 active и archived deltas служат change planning/history и не заменяют baseline.
 
+Локальная ignored Lexi infrastructure разворачивается и проверяется только через
+`.scripts/erl/dev/erl-openclaw-agent-setup.zsh`. Default invocation является
+dry-run; mutation требует `--apply`, а managed replacement — отдельного
+`--replace-managed`. Setup не даёт полномочий изменять global OpenClaw config,
+credentials, agent registration или external bindings.
+Перед completion/archive change `add-openclaw-agent-setup` выполнить byte-exact
+сверку embedded payload с текущими reference skills через
+`erl-openclaw-agent-setup.zsh --check-reference-skills "$PWD/skills"`.
+
 Главная архитектурная граница:
 
 ```text

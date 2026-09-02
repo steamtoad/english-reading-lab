@@ -118,3 +118,31 @@ Post-apply validation MUST проверять, что managed paths остают
 - **AND** `git status --short` SHALL NOT показывать их как untracked files
 - **AND** prohibited distribution artifacts SHALL отсутствовать
 
+### Requirement: ERL-AGENT-SETUP-008 — Embedded skill payload matches the reference Lexi skills
+
+Текущий полный набор семи Lexi runtime skills в настроенном reference workspace MUST быть эталоном содержимого skills для embedded setup payload. Development validation MUST сравнивать извлечённое из setup payload дерево `skills/` с reference Lexi skills по точному набору relative file paths и byte-exact content каждого file.
+
+Расхождение, отсутствующий или лишний file, reference symlink либо отличие bytes MUST завершать validation с конкретной drift diagnostic и MUST блокировать признание payload актуальным, завершение Change и archive. Отсутствие reference `skills/` в fresh checkout MUST NOT мешать runtime dry-run, apply или check: reference comparison является development-time synchronization gate, а self-contained embedded payload остаётся deployment source of truth.
+
+#### Scenario: Embedded payload matches current reference skills
+
+- **GIVEN** доступны текущие reference Lexi skills
+- **WHEN** development payload synchronization check извлекает embedded skills
+- **THEN** exact relative file set SHALL совпадать для всех семи skills и required references
+- **AND** bytes каждого corresponding file SHALL совпадать
+- **AND** synchronization check SHALL успешно завершиться
+
+#### Scenario: Reference skill changes after payload generation
+
+- **GIVEN** file текущего reference Lexi skill был добавлен, удалён или изменён после формирования embedded payload
+- **WHEN** development payload synchronization check запускается повторно
+- **THEN** check SHALL завершиться ошибкой
+- **AND** diagnostic SHALL назвать drifted relative path и тип расхождения
+- **AND** Change completion и archive SHALL оставаться заблокированными до явного обновления payload и повторной успешной проверки
+
+#### Scenario: Fresh checkout has no reference skills directory
+
+- **GIVEN** fresh checkout не содержит materialized `skills/`
+- **WHEN** пользователь запускает setup dry-run, apply или integrity check
+- **THEN** setup SHALL использовать self-contained embedded payload без reference directory
+- **AND** runtime operation SHALL NOT завершаться ошибкой только из-за отсутствия development reference skills

@@ -32,6 +32,12 @@ Primary regression test, выведенный из change name: `tests/erl-openc
 
 Static payload включает Lexi identity, soul, heartbeat policy, runtime documentation, skills и references. `--workspace`, `--user-name` и `--timezone` формируют local fields `TOOLS.md`/`USER.md`. Completion timestamp вычисляется при successful apply. Manifest содержит relative path, mode и SHA-256 rendered bytes; абсолютные paths никогда не используются как archive member names.
 
+### Current Lexi skills are the development reference
+
+При формировании или обновлении embedded archive текущий materialized набор семи Lexi skills рассматривается как reference input. Отдельный development synchronization check извлекает payload во временную директорию и сравнивает reference и extracted `skills/` по sorted relative path set и byte-exact content. Любой missing, extra, changed или non-regular member блокирует completion/archive и сообщает конкретный relative path.
+
+Reference workspace не становится runtime dependency setup: fresh checkout по-прежнему materializes skills только из embedded payload. Альтернатива проверять лишь общий payload hash отклонена, поскольку она не показывает конкретный drift и не доказывает согласованность с текущими эталонными skills. Автоматически переписывать payload при каждом check также запрещено: refresh является явным reviewed действием.
+
 ### Plan precedes any mutation
 
 Script сначала render'ит payload в private temporary staging directory, проверяет path containment, file modes, duplicate paths, archive safety, skills и hashes, затем строит create/keep/conflict plan. Default invocation является dry-run; mutation требует `--apply`. `--check` валидирует existing workspace без staging commit.
@@ -47,6 +53,7 @@ Script materializes workspace contract и выдаёт post-setup instructions/s
 ## Risks / Trade-offs
 
 - [Embedded skill payload делает script большим] → deterministic manifest/hash и extraction test контролируют drift; единый artifact соответствует требуемой portability.
+- [Reference skills и embedded archive расходятся после редактирования skill] → byte-exact development synchronization gate называет drifted path и блокирует completion/archive до explicit payload refresh.
 - [Local edits конфликтуют с новой payload version] → dry-run показывает exact conflicts; explicit replacement всегда создаёт backup.
 - [Archive extraction позволяет path traversal] → разрешены только normalized repository-relative paths из fixed manifest; absolute paths, `..`, symlinks и special files отклоняются.
 - [Secrets случайно попадают в payload] → static negative scan и fixture запрещают token/config/session patterns; profile поддерживает только allowlisted values.
