@@ -65,6 +65,14 @@ if [[ "$operation" == erl-book-ingest ]]; then
     [[ "$(erl_sha256_file "$artifact_path")" == "$artifact_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Created Book-ingest artifact changed unexpectedly: $artifact_path"
   done < <(jq -r '.created_artifacts[]? | [.path,.hash]|@tsv' "$tx_file")
   while IFS= read -r artifact_path; do [[ -n "$artifact_path" ]] && rm -f -- "$artifact_path"; done < <(jq -r '.created_artifacts | reverse[]? | .path' "$tx_file")
+  while IFS=$'\t' read -r uuid modified_path pre_hash post_hash; do
+    [[ -n "$modified_path" ]] || continue
+    backup="$tx_dir/backups/$uuid.adoc"
+    [[ -f "$backup" && "$(erl_sha256_file "$backup")" == "$pre_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Book-ingest Chapter backup is missing or changed: $uuid"
+    current_modified_hash="$(erl_sha256_file "$modified_path")"
+    [[ "$current_modified_hash" == "$pre_hash" || ( -n "$post_hash" && "$current_modified_hash" == "$post_hash" ) ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Book-ingest Chapter changed unexpectedly: $modified_path"
+    cp -- "$backup" "$modified_path" || erl_fail 60 error TRANSACTION_FAILED "Cannot restore Book-ingest Chapter: $modified_path"
+  done < <(jq -r '.modified_documents[]? | [.uuid,.path,.pre_hash,(.post_hash // "")]|@tsv' "$tx_file")
   manifest_pre_hash="$(jq -r '.work_manifest_pre_hash // empty' "$tx_file")"
   if [[ -n "$manifest_pre_hash" && -f "$manifest" ]]; then
     [[ "$(erl_sha256_file "$manifest")" == "$manifest_pre_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Existing work manifest changed unexpectedly; recovery refused"
@@ -108,6 +116,34 @@ if [[ "$operation" == erl-chapter-chain-handoff ]]; then
   rm -rf -- "$tx_dir/backups"
   erl_emit ok OK true "$data" '[]' 0
 fi
+if [[ "$operation" == erl-chapter-memo-chain-migrate ]]; then
+  data="$(jq -cn --arg txid "$txid" --arg operation "$operation" --arg phase "$phase" '{txid:$txid,operation:$operation,phase:$phase,recovery_action:"rollback"}')"
+  [[ "$mode" == apply ]] || erl_emit ok OK false "$data" '[]' 0
+  lock="$vault/.state/erl/locks/transaction-recover-$txid.lock"; erl_lock_acquire "$lock"
+  while IFS=$'\t' read -r uuid document_path pre_hash; do
+    backup="$tx_dir/backups/$uuid.adoc"
+    [[ -f "$backup" && "$(erl_sha256_file "$backup")" == "$pre_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Chapter Memo Chain migration backup is missing or changed: $uuid"
+    cp -- "$backup" "$document_path" || erl_fail 60 error TRANSACTION_FAILED "Cannot restore Chapter Memo Chain document: $document_path"
+  done < <(jq -r '.documents[]|[.uuid,.path,.pre_hash]|@tsv' "$tx_file")
+  jq '.phase="rolled_back"' "$tx_file" | erl_atomic_write "$tx_file" || erl_fail 60 error TRANSACTION_FAILED "Cannot finalize Chapter Memo Chain rollback"
+  rm -rf -- "$tx_dir/backups"
+  erl_emit ok OK true "$data" '[]' 0
+fi
+if [[ "$operation" == erl-chapter-topic-binding-migrate ]]; then
+  data="$(jq -cn --arg txid "$txid" --arg operation "$operation" --arg phase "$phase" '{txid:$txid,operation:$operation,phase:$phase,recovery_action:"rollback"}')"
+  [[ "$mode" == apply ]] || erl_emit ok OK false "$data" '[]' 0
+  lock="$vault/.state/erl/locks/transaction-recover-$txid.lock"; erl_lock_acquire "$lock"
+  while IFS=$'\t' read -r uuid document_path pre_hash post_hash; do
+    backup="$tx_dir/backups/$uuid.adoc"
+    [[ -f "$backup" && "$(erl_sha256_file "$backup")" == "$pre_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Chapter Topic binding backup is missing or changed: $uuid"
+    current_hash="$(erl_sha256_file "$document_path")"
+    [[ "$current_hash" == "$pre_hash" || ( -n "$post_hash" && "$current_hash" == "$post_hash" ) ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Chapter Topic binding document changed unexpectedly: $document_path"
+    cp -- "$backup" "$document_path" || erl_fail 60 error TRANSACTION_FAILED "Cannot restore Chapter Topic binding document: $document_path"
+  done < <(jq -r '.documents[]|[.uuid,.path,.pre_hash,(.post_hash // "")]|@tsv' "$tx_file")
+  jq '.phase="rolled_back"' "$tx_file" | erl_atomic_write "$tx_file" || erl_fail 60 error TRANSACTION_FAILED "Cannot finalize Chapter Topic binding rollback"
+  rm -rf -- "$tx_dir/backups"
+  erl_emit ok OK true "$data" '[]' 0
+fi
 [[ "$operation" == erl-vocabulary-ingest ]] || erl_fail 40 blocked RECOVERY_UNSUPPORTED "Automatic recovery is not implemented for transaction operation: $operation"
 generation="$(jq -r .generation_uuid "$tx_file")"; extraction="$(jq -r .extraction_id "$tx_file")"; candidate="$(jq -r .candidate_ordinal "$tx_file")"
 generation_file="$(jq -r '.generation_path // empty' "$tx_file")"; [[ -f "$generation_file" ]] || generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Generation state is unavailable for recovery"
@@ -130,6 +166,17 @@ if [[ -n "$document_path" && -e "$document_path" ]]; then
   [[ -n "$document_hash" && "$(erl_sha256_file "$document_path")" == "$document_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Created document changed unexpectedly; automatic rollback refused"
   rm -f -- "$document_path"
 fi
+for item in chapter predecessor; do
+  item_path="$(jq -r --arg item "$item" '.[$item].path // empty' "$tx_file")"
+  [[ -n "$item_path" ]] || continue
+  item_pre_hash="$(jq -r --arg item "$item" '.[$item].pre_hash // empty' "$tx_file")"
+  item_post_hash="$(jq -r --arg item "$item" '.[$item].post_hash // empty' "$tx_file")"
+  backup="$tx_dir/backups/${item}.adoc"
+  [[ -f "$backup" && "$(erl_sha256_file "$backup")" == "$item_pre_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Vocabulary-ingest backup is missing or changed: $item"
+  current_item_hash="$(erl_sha256_file "$item_path")"
+  [[ "$current_item_hash" == "$item_pre_hash" || ( -n "$item_post_hash" && "$current_item_hash" == "$item_post_hash" ) ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Vocabulary-ingest document changed unexpectedly: $item_path"
+  cp -- "$backup" "$item_path" || erl_fail 60 error TRANSACTION_FAILED "Cannot restore Vocabulary-ingest document: $item_path"
+done
 jq '.phase="rolled_back"' "$tx_file" | erl_atomic_write "$tx_file" || erl_fail 60 error TRANSACTION_FAILED "Cannot finalize rollback recovery"
 rm -rf -- "$tx_dir/backups"
 erl_emit ok OK true "$data" '[]' 0

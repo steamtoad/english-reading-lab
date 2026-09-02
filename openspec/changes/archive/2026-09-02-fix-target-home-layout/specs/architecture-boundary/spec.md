@@ -8,6 +8,14 @@ ERL executables MUST NOT требовать, чтобы production host core imp
 
 Canonical host operations MUST разрешаться через host contract, предоставляемый целевым Zettelkasten host, а destination для persistent documents и ERL state MUST разрешаться как target Zettelkasten home.
 
+#### Scenario: ERL and host use different filesystem roots
+
+- **GIVEN** ERL repository и целевой Zettelkasten host/Vault находятся в разных filesystem roots
+- **WHEN** ERL operation требует canonical host object или library operation
+- **THEN** operation SHALL использовать host contract, предоставляемый целевым host/Vault
+- **AND** operation SHALL NOT требовать `.scripts/objects/`, `.scripts/lib/` или `.scripts/zettelkasten/` внутри ERL repository
+- **AND** различие ERL repository root и host/Vault root SHALL считаться нормальной поддерживаемой конфигурацией
+
 #### Scenario: ERL, host and data use different filesystem roots
 
 - **GIVEN** ERL repository, Zettelkasten host implementation и target Zettelkasten home находятся в разных filesystem roots

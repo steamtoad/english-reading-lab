@@ -20,16 +20,16 @@
 - **AND** SHALL NOT изменять work state
 - **AND** исправление SHALL выполняться только `erl-classic-reduce-reconcile` с explicit apply
 
-### Requirement: ERL-CHECK-001 — Recorded UUIDs resolve to Vault documents
+### Requirement: ERL-CHECK-001 — Recorded UUIDs resolve to canonical target-home documents
 
-Все UUID из `.state/erl/works/` MUST существовать как соответствующие Vault documents, если record не помечен как допустимая historical/tombstone relation.
+Все UUID из `<ZETTELKASTEN_HOME>/.state/erl/works/` MUST существовать как соответствующие documents в `<ZETTELKASTEN_HOME>/notes/`, если record не помечен как допустимая historical/tombstone relation.
 
 #### Scenario: Recorded UUID is validated
 
-- **GIVEN** UUID записан в `.state/erl/works/`
-- **WHEN** ERL выполняет validation
-- **THEN** соответствующий Vault document SHALL существовать
-- **OR** record SHALL быть помечен как допустимая historical/tombstone relation
+- **GIVEN** UUID записан в `<ZETTELKASTEN_HOME>/.state/erl/works/`
+- **WHEN** `erl-check` разрешает соответствующий document
+- **THEN** document SHALL существовать в `<ZETTELKASTEN_HOME>/notes/`
+- **AND** nested `vault/notes/` SHALL NOT использоваться как fallback
 
 ### Requirement: ERL-CHECK-002 — Recorded role matches canonical document contract
 
@@ -237,15 +237,27 @@ ERL document MUST NOT содержать plugin-specific AsciiDoc attributes `:e
 
 ### Requirement: ERL-CHECK-021 — Book Topic follows host Topic presentation contract
 
-Book Topic MUST содержать host-compatible `:key-topic:`, не используемый как `WORK_ID`, и MUST удовлетворять canonical host Topic presentation contract.
+Каждый retained или active Book generation UUID MUST разрешаться в существующую canonical Topic, чья видимая presentation идентифицирует конкретную книгу из logical work state.
+
+Book Topic MUST содержать host-compatible `:key-topic:`, не используемый как `WORK_ID`, и MUST удовлетворять canonical host Topic presentation contract. Topic, представленная только thematic key вместо title книги, MUST диагностироваться как неверная Book Topic presentation.
 
 #### Scenario: Book Topic presentation is validated
 
 - **GIVEN** ERL document имеет Book Topic role
 - **WHEN** ERL выполняет validation
-- **THEN** Topic SHALL содержать host-compatible `:key-topic:`
+- **THEN** Topic SHALL существовать в canonical Vault namespace
+- **AND** Topic SHALL содержать host-compatible `:key-topic:`
 - **AND** `:key-topic:` SHALL NOT использоваться как `WORK_ID`
+- **AND** видимый title Topic SHALL идентифицировать книгу по canonical title logical work
 - **AND** Topic SHALL удовлетворять canonical host Topic presentation contract
+
+#### Scenario: Registered generation has no valid Book Topic
+
+- **GIVEN** work manifest или generation state содержит Book generation UUID
+- **WHEN** соответствующий document отсутствует, имеет type не `topic` или его title не представляет книгу
+- **THEN** `erl-check` SHALL вернуть validation error для этой generation
+- **AND** diagnostic SHALL различать missing Topic, wrong canonical type и wrong Book presentation
+- **AND** `erl-check` SHALL NOT создавать или переписывать Topic автоматически
 
 ### Requirement: ERL-CHECK-022 — ERL identifiers use valid lowercase UUID format
 
@@ -343,3 +355,74 @@ Validation MUST проверять UTF-8 и AsciiDoc validity, непустые 
 - **THEN** `erl-check` SHALL вернуть validation error с конкретной причиной
 - **AND** SHALL указать generation UUID, source ID, current Chapter UUID, next Chapter UUID и tail Memo UUID, когда они доступны
 - **AND** SHALL NOT изменять Vault documents или persistent state
+
+### Requirement: ERL-CHECK-026 — Target home layout is validated
+
+`erl-check` MUST проверять canonical target-home layout и MUST обнаруживать legacy nested `vault/` layout без изменения данных.
+
+#### Scenario: Canonical layout is valid
+
+- **GIVEN** documents находятся в `<ZETTELKASTEN_HOME>/notes/`, а state — в `<ZETTELKASTEN_HOME>/.state/erl/`
+- **WHEN** выполняется `erl-check`
+- **THEN** layout SHALL считаться canonical
+
+#### Scenario: Legacy nested layout exists
+
+- **GIVEN** documents или ERL state обнаружены под `<ZETTELKASTEN_HOME>/vault/`
+- **WHEN** выполняется `erl-check`
+- **THEN** checker SHALL вывести `HOME_LAYOUT_MIGRATION_REQUIRED`
+- **AND** SHALL указать обнаруженные legacy paths
+- **AND** SHALL NOT изменять данные
+
+### Requirement: ERL-CHECK-028 — Chapter Memo attachment and chain are complete and reciprocal
+
+`erl-check` MUST read-only проверять для каждого Vocabulary/Occurrence sequence node active generation:
+
+- точное совпадение Memo и Chapter Note `:key-topic:`;
+- ровно одну Memo→Chapter link и одну reciprocal Chapter→Memo link;
+- соответствие Chapter UUID persistent sequence entry;
+- ровно один Chapter-local chain head;
+- predecessor/successor reciprocity с labels `Предыдущее memo` и `Следующее memo`;
+- соответствие chain order Candidate/source order;
+- отсутствие duplicates, branches, cycles и cross-Chapter chain edges.
+
+#### Scenario: Valid Chapter Memo Chain is checked
+
+- **GIVEN** Chapter содержит committed Vocabulary/Occurrence sequence nodes
+- **WHEN** ERL выполняет validation
+- **THEN** attachment links и `:key-topic:` SHALL соответствовать Chapter Note
+- **AND** Memo Chain SHALL быть полной линейной reciprocal projection sequence nodes этой Chapter
+
+#### Scenario: Attachment or chain is inconsistent
+
+- **WHEN** key values различаются, attachment односторонняя, state Chapter UUID не совпадает, chain link односторонняя, head неоднозначен, существует branch/cycle/duplicate или edge пересекает Chapter boundary
+- **THEN** `erl-check` SHALL вернуть validation error с конкретной причиной
+- **AND** SHALL указать generation UUID, Chapter UUID и затронутые Memo UUID
+- **AND** SHALL NOT изменять Vault documents или persistent state
+
+### Requirement: ERL-CHECK-027 — Chapter–Book Topic binding is complete and reciprocal
+
+`erl-check` MUST read-only проверять для каждой Chapter Note active generation:
+
+- точное совпадение Chapter `:key-topic:` и Book Topic `:key-topic:`;
+- ровно одну canonical Chapter→active Book Topic link;
+- ровно одну reciprocal Book Topic→Chapter link;
+- отсутствие duplicate links;
+- source-order Topic→Chapter links;
+- отсутствие второй active Book Topic attachment Chapter Note.
+
+#### Scenario: Complete Chapter–Topic binding is validated
+
+- **GIVEN** Chapter зарегистрирована для active Book generation
+- **WHEN** ERL выполняет validation
+- **THEN** Chapter `:key-topic:` SHALL совпадать с Book Topic `:key-topic:`
+- **AND** Chapter→Topic и Topic→Chapter links SHALL существовать и быть взаимными
+- **AND** каждая сторона SHALL содержать ровно одну applicable link
+
+#### Scenario: Chapter–Topic binding is incomplete or conflicting
+
+- **GIVEN** Chapter относится к active Book generation
+- **WHEN** отсутствует `:key-topic:`, key values различаются, одна сторона link отсутствует, link дублируется, Topic links нарушают source order или Chapter указывает на две active Book Topics
+- **THEN** `erl-check` SHALL вернуть validation error с причиной нарушения
+- **AND** SHALL указать Book Topic UUID и Chapter UUID
+- **AND** SHALL NOT изменять Topic, Chapter Note или persistent work state

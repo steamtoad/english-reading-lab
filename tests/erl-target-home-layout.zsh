@@ -101,6 +101,9 @@ rg -qF 'Compatibility spelling для target Zettelkasten home' "$repo/.scripts/
 # Naming validation detects a missing derived primary test and accepts it once present.
 naming_fixture="$fixture/naming-repo"
 mkdir -p "$naming_fixture/openspec/changes/fix-missing-test" "$naming_fixture/tests"
+print -r -- '## 1. Fixture
+
+- [x] 1.1 Complete implementation' > "$naming_fixture/openspec/changes/fix-missing-test/tasks.md"
 set +e
 naming_output="$("$repo/.scripts/erl/dev/erl-delta-test-naming-check.zsh" "$naming_fixture" 2>&1)"
 naming_rc=$?

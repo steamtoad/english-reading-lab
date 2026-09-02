@@ -12,6 +12,7 @@ setopt pipe_fail no_unset
 script_dir="${0:A:h}"
 source "$script_dir/lib/common.zsh"
 source "$script_dir/lib/source.zsh"
+source "$script_dir/lib/chapter-memo-chain.zsh"
 
 ERL_COMMAND="erl-book-ingest"
 ERL_JSON_MODE=0
@@ -83,7 +84,7 @@ plan="$(jq -cn --argjson work_id "$(if [[ -n "$work_id" ]]; then jq -cn --arg v 
 
 lock="$vault/.state/erl/locks/book-ingest-${work_id:-$work_slug}.lock"
 erl_lock_acquire "$lock"
-tmp_tx=""; created_docs=(); created_work=0; created_source_file=""; created_generation_file=""
+tmp_tx=""; created_docs=(); modified_chapter_files=(); created_work=0; created_source_file=""; created_generation_file=""
 cleanup_ingest() { erl_lock_release "$lock"; }
 trap cleanup_ingest EXIT HUP INT TERM
 
@@ -103,8 +104,12 @@ journal_created_artifact() {
 }
 
 rollback_ingest() {
-  local file
+  local file chapter_uuid
   for file in "${created_docs[@]}"; do rm -f -- "$file"; done
+  for file in "${modified_chapter_files[@]}"; do
+    chapter_uuid="${file:t:r}"
+    [[ -f "$tx_dir/backups/$chapter_uuid.adoc" ]] && cp -- "$tx_dir/backups/$chapter_uuid.adoc" "$file"
+  done
   if (( created_work )); then
     rm -rf -- "$work_dir"
   else
@@ -117,7 +122,7 @@ rollback_ingest() {
   fi
 }
 
-topic_title="$key_topic - ключевая тема"
+topic_title="$title"
 generation_fname="$(ZK_HOME="$vault" "$topic_constructor" "$topic_title" "$key_topic" topic "$topic_title")" || { rollback_ingest; erl_fail 50 error IO_ERROR "Canonical Topic constructor failed"; }
 generation_uuid="${generation_fname%.adoc}"
 created_docs+=("$vault/notes/$generation_fname")
@@ -131,16 +136,33 @@ created_docs+=("$vault/notes/$generation_fname")
 } >> "$vault/notes/$generation_fname"
 journal_created_artifact "$vault/notes/$generation_fname" document || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot journal created Book Topic"; }
 jq --arg generation_uuid "$generation_uuid" '.generation_uuid=$generation_uuid' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot journal generation identity"; }
+topic_file="$vault/notes/$generation_fname"
+topic_type="$(awk '/^:type:/{sub(/^:type:[[:space:]]*/,"");print;exit}' "$topic_file")"
+topic_key="$(awk '/^:key-topic:/{sub(/^:key-topic:[[:space:]]*/,"");print;exit}' "$topic_file")"
+topic_visible_title="$(awk 'NR==1{sub(/^= /,"");print;exit}' "$topic_file")"
+topic_description="$(awk '/^:description:/{sub(/^:description:[[:space:]]*/,"");print;exit}' "$topic_file")"
+topic_doclink="$(awk '/^:doclink:/{sub(/^:doclink:[[:space:]]*/,"");print;exit}' "$topic_file")"
+if [[ ! "$generation_uuid" =~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || \
+      ! -f "$topic_file" || "$topic_type" != topic || "$topic_key" != "$key_topic" || \
+      "$topic_visible_title" != "$title" || "$topic_description" != "$title" || \
+      "$topic_doclink" != "link:${generation_fname}[$title]" ]]; then
+  rollback_ingest
+  erl_fail 60 error TRANSACTION_FAILED "Created Book Topic failed post-construction validation"
+fi
 chapter_records=()
 if (( ! reuse_source )); then
   while IFS= read -r chapter_row; do
     chapter_title="$(jq -r .title <<< "$chapter_row")"
     locator="$(jq -r .chapter_locator <<< "$chapter_row")"
     source_order="$(jq -r .source_order <<< "$chapter_row")"
-    chapter_fname="$(ZK_HOME="$vault" "$note_constructor" "$chapter_title" note "$chapter_title")" || { rollback_ingest; erl_fail 50 error IO_ERROR "Canonical Note constructor failed"; }
+    chapter_fname="$(ZK_HOME="$vault" "$note_constructor" "$chapter_title" note "$chapter_title" ":key-topic: $key_topic")" || { rollback_ingest; erl_fail 50 error IO_ERROR "Canonical Note constructor failed"; }
     chapter_uuid="${chapter_fname%.adoc}"
     created_docs+=("$vault/notes/$chapter_fname")
     {
+      print -r -- "== Book"
+      print -r -- ""
+      print -r -- "link:$generation_uuid.adoc[$title]"
+      print -r -- ""
       print -r -- "== Source"
       print -r -- ""
       print -r -- "Book:: $(erl_json_escape_asciidoc "$title")"
@@ -154,7 +176,42 @@ if (( ! reuse_source )); then
   created_source_file="$work_dir/sources/$source_id.json"
   print -r -- "$source_json" | erl_atomic_write "$created_source_file" || { rollback_ingest; erl_fail 50 error IO_ERROR "Cannot write source state"; }
   journal_created_artifact "$created_source_file" state || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot journal created source state"; }
+else
+  while IFS= read -r chapter_record; do chapter_records+=("$chapter_record"); done < <(jq -c '.chapters | sort_by(.source_order)[]' "$existing_source")
 fi
+
+topic_links_file="$tx_dir/topic-chapters.links"; : > "$topic_links_file"
+modified_documents='[]'
+for chapter_record in "${chapter_records[@]}"; do
+  chapter_uuid="$(jq -r .chapter_uuid <<< "$chapter_record")"
+  chapter_file="$vault/notes/$chapter_uuid.adoc"
+  [[ -f "$chapter_file" ]] || { rollback_ingest; erl_fail 30 error STATE_CONFLICT "Durable Chapter Note is missing: $chapter_uuid"; }
+  chapter_title="$(awk 'NR==1{sub(/^= /,"");print;exit}' "$chapter_file")"
+  print -r -- "link:$chapter_uuid.adoc[$chapter_title]" >> "$topic_links_file"
+  if (( reuse_source )); then
+    current_book_links=("${(@f)$(erl_section_links "$chapter_file" Book)}"); current_book_links=("${(@)current_book_links:#}")
+    if (( ${#current_book_links} > 1 )); then rollback_ingest; erl_fail 30 error STATE_CONFLICT "Durable Chapter has multiple Book Topic attachments: $chapter_uuid"; fi
+    if (( ${#current_book_links} == 1 )); then
+      previous_topic_file="$vault/notes/${current_book_links[1]}.adoc"
+      if [[ ! -f "$previous_topic_file" || "$(erl_doc_attr "$previous_topic_file" type)" != topic || "$(erl_doc_attr "$previous_topic_file" key-topic)" != "$(erl_doc_attr "$chapter_file" key-topic)" ]]; then
+        rollback_ingest; erl_fail 30 error STATE_CONFLICT "Durable Chapter has a user-owned Book section conflict: $chapter_uuid"
+      fi
+    fi
+    cp -- "$chapter_file" "$tx_dir/backups/$chapter_uuid.adoc" || { rollback_ingest; erl_fail 50 error IO_ERROR "Cannot back up durable Chapter"; }
+    modified_chapter_files+=("$chapter_file")
+    modified_documents="$(jq -c --arg uuid "$chapter_uuid" --arg path "$chapter_file" --arg hash "$(erl_sha256_file "$chapter_file")" '.+[{uuid:$uuid,path:$path,pre_hash:$hash}]' <<< "$modified_documents")"
+    chapter_book_links="$tx_dir/$chapter_uuid-book.links"; print -r -- "link:$generation_uuid.adoc[$title]" > "$chapter_book_links"
+    erl_replace_key_topic "$chapter_file" "$topic_key" && erl_replace_section_links "$chapter_file" Book "$chapter_book_links" || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot rebind durable Chapter to Book Topic"; }
+  fi
+done
+erl_replace_section_links "$topic_file" Chapters "$topic_links_file" || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot materialize Book Topic Chapter links"; }
+for file in "${modified_chapter_files[@]}"; do
+  chapter_uuid="${file:t:r}"
+  modified_documents="$(jq -c --arg uuid "$chapter_uuid" --arg hash "$(erl_sha256_file "$file")" 'map(if .uuid==$uuid then .post_hash=$hash else . end)' <<< "$modified_documents")"
+done
+jq --arg path "$topic_file" --arg hash "$(erl_sha256_file "$topic_file")" --argjson modified "$modified_documents" '(.created_artifacts[] | select(.path==$path).hash)=$hash|.modified_documents=$modified|.phase="bindings_updated"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || { rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Cannot journal Chapter bindings"; }
+if [[ "${ERL_TEST_FAIL_BOOK_BINDING_AFTER_DOCUMENTS:-0}" == 1 ]]; then rollback_ingest; erl_fail 60 error TRANSACTION_FAILED "Injected Chapter binding failure"; fi
+if [[ "${ERL_TEST_INTERRUPT_BOOK_BINDING_AFTER_DOCUMENTS:-0}" == 1 ]]; then erl_fail 60 blocked RECOVERY_REQUIRED "Injected Chapter binding interruption"; fi
 generation_json="$(jq -cn --arg generation_uuid "$generation_uuid" --arg work_id "$work_id" --arg source_id "$source_id" --argjson policy "$(cat "$policy_file")" '{schema_version:1,generation_uuid:$generation_uuid,work_id:$work_id,source_id:$source_id,status:"active",policy:$policy,policy_identity:$policy.identity,sequence:[],members:[],ingestion_receipts:[]}')"
 created_generation_file="$work_dir/generations/$generation_uuid.json"
 print -r -- "$generation_json" | erl_atomic_write "$created_generation_file" || { rollback_ingest; erl_fail 50 error IO_ERROR "Cannot write generation state"; }

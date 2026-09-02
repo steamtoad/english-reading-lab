@@ -37,13 +37,25 @@ header() {
 "
 }
 
-header 'Reading - ключевая тема' topic "$generation" $'\n:key-topic: Reading' > "$fixture/notes/$generation.adoc"
-header 'Chapter 1' note "$chapter" > "$fixture/notes/$chapter.adoc"
+header 'A Human Book' topic "$generation" $'\n:key-topic: Reading' > "$fixture/notes/$generation.adoc"
+print -r -- "== Chapters
+
+link:$chapter.adoc[Chapter 1]" >> "$fixture/notes/$generation.adoc"
+header 'Chapter 1' note "$chapter" $'\n:key-topic: Reading' > "$fixture/notes/$chapter.adoc"
 print -r -- '== Source
 
 Book:: A Human Book
 Chapter locator:: chapter-1.xhtml' >> "$fixture/notes/$chapter.adoc"
-header 'forlorn' memo "$vocabulary" > "$fixture/notes/$vocabulary.adoc"
+print -r -- "
+== Book
+
+link:$generation.adoc[A Human Book]" >> "$fixture/notes/$chapter.adoc"
+print -r -- "
+== Vocabulary
+
+link:$vocabulary.adoc[forlorn]
+link:$occurrence.adoc[forlorn occurrence]" >> "$fixture/notes/$chapter.adoc"
+header 'forlorn' memo "$vocabulary" $'\n:key-topic: Reading' > "$fixture/notes/$vocabulary.adoc"
 print -r -- '== Lexical identity
 
 Lemma:: forlorn
@@ -58,14 +70,30 @@ Translation:: покинутый
 == Context
 
 The forlorn traveller waited.' >> "$fixture/notes/$vocabulary.adoc"
-header 'forlorn occurrence' memo "$occurrence" > "$fixture/notes/$occurrence.adoc"
+print -r -- "
+== Chapter
+
+link:$chapter.adoc[Chapter 1]
+
+== Memo Chain
+
+link:$occurrence.adoc[Следующее memo]" >> "$fixture/notes/$vocabulary.adoc"
+header 'forlorn occurrence' memo "$occurrence" $'\n:key-topic: Reading' > "$fixture/notes/$occurrence.adoc"
 print -r -- "== Vocabulary
 
 link:$vocabulary.adoc[forlorn]
 
 == Context
 
-The forlorn traveller waited." >> "$fixture/notes/$occurrence.adoc"
+The forlorn traveller waited.
+
+== Chapter
+
+link:$chapter.adoc[Chapter 1]
+
+== Memo Chain
+
+link:$vocabulary.adoc[Предыдущее memo]" >> "$fixture/notes/$occurrence.adoc"
 
 print -r -- "{\"schema_version\":1,\"work_id\":\"$work\",\"title\":\"A Human Book\",\"generation_uuids\":[\"$generation\"],\"active_generation_uuid\":\"$generation\"}" > "$fixture/.state/erl/works/book/work.json"
 print -r -- "{\"schema_version\":1,\"source_id\":\"$source_id\",\"work_id\":\"$work\",\"source_fingerprint\":\"sha256:$(printf 'a%.0s' {1..64})\",\"chapters\":[{\"chapter_uuid\":\"$chapter\",\"source_id\":\"$source_id\",\"chapter_locator\":\"chapter-1.xhtml\",\"source_order\":1}]}" > "$fixture/.state/erl/works/book/sources/$source_id.json"

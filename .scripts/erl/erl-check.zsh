@@ -11,6 +11,7 @@ setopt pipe_fail no_unset
 
 script_dir="${0:A:h}"
 source "$script_dir/lib/card-content.zsh"
+source "$script_dir/lib/chapter-memo-chain.zsh"
 
 readonly ERL_COMMAND="erl-check"
 readonly ERL_SCHEMA_VERSION=1
@@ -190,7 +191,11 @@ check_document_common() {
   local uuid="$1" role="$2" generation="$3" chapter="$4" work_id="$5"
   local file type
   file="$(doc_path "$uuid")" || {
-    add_diag error ERL-CHECK-001 "Recorded Vault document does not exist" document_uuid "$uuid" generation_uuid "$generation" work_id "$work_id"
+    if [[ "$role" == book ]]; then
+      add_diag error ERL-CHECK-021 "Registered Book generation has no canonical Topic" diagnostic_kind missing_topic document_uuid "$uuid" generation_uuid "$generation" work_id "$work_id"
+    else
+      add_diag error ERL-CHECK-001 "Recorded Vault document does not exist" document_uuid "$uuid" generation_uuid "$generation" work_id "$work_id"
+    fi
     return
   }
   type="$(doc_attr "$file" type)"
@@ -201,15 +206,19 @@ check_document_common() {
 
   case "$role" in
     book)
-      [[ "$type" == topic ]] || add_diag error ERL-CHECK-002 "Book role requires canonical Topic" document_uuid "$uuid"
-      local key title description doclink expected_title
+      if [[ "$type" != topic ]]; then
+        add_diag error ERL-CHECK-021 "Book generation document has the wrong canonical type" diagnostic_kind wrong_type document_uuid "$uuid" generation_uuid "$generation" work_id "$work_id"
+        break
+      fi
+      local key title description doclink expected_title work_file
       key="$(doc_attr "$file" key-topic)"
       title="$(awk 'NR==1{sub(/^= /,"");print;exit}' "$file")"
       description="$(doc_attr "$file" description)"
       doclink="$(doc_attr "$file" doclink)"
-      expected_title="$key - ключевая тема"
-      if [[ -z "$key" || "$title" != "$expected_title" || "$description" != "$expected_title" || "$doclink" != "link:$uuid.adoc[$expected_title]" ]]; then
-        add_diag error ERL-CHECK-021 "Book Topic violates host key-topic presentation contract" document_uuid "$uuid"
+      work_file="${work_ids[$work_id]-}"
+      expected_title="$(json_value "$work_file" '.title')"
+      if [[ -z "$key" || "$key" == "$work_id" || -z "$expected_title" || "$title" != "$expected_title" || "$description" != "$expected_title" || "$doclink" != "link:$uuid.adoc[$expected_title]" ]]; then
+        add_diag error ERL-CHECK-021 "Book Topic does not present the logical work title using the host Topic contract" diagnostic_kind wrong_presentation document_uuid "$uuid" generation_uuid "$generation" work_id "$work_id"
       fi
       ;;
     chapter)
@@ -218,6 +227,21 @@ check_document_common() {
       ;;
     vocabulary|occurrence)
       [[ "$type" == memo ]] || add_diag error ERL-CHECK-002 "${(C)role} role requires canonical Memo" document_uuid "$uuid" generation_uuid "$generation"
+      if [[ -n "$chapter" ]]; then
+        local chapter_file memo_key chapter_key chapter_links reciprocal_count
+        chapter_file="$(doc_path "$chapter")" || chapter_file=""
+        if [[ -z "$chapter_file" ]]; then
+          add_diag error ERL-CHECK-028 "Memo attachment Chapter is missing" reason missing_chapter generation_uuid "$generation" chapter_uuid "$chapter" document_uuid "$uuid"
+        else
+          memo_key="$(doc_attr "$file" key-topic)"; chapter_key="$(doc_attr "$chapter_file" key-topic)"
+          [[ -n "$memo_key" && "$memo_key" == "$chapter_key" ]] || add_diag error ERL-CHECK-028 "Memo and Chapter key-topic values differ" reason mismatched_key generation_uuid "$generation" chapter_uuid "$chapter" document_uuid "$uuid"
+          chapter_links=("${(@f)$(erl_section_links "$file" Chapter)}")
+          chapter_links=("${(@)chapter_links:#}")
+          (( ${#chapter_links} == 1 )) && [[ "${chapter_links[1]}" == "$chapter" ]] || add_diag error ERL-CHECK-028 "Memo must contain exactly one link to its recorded Chapter" reason memo_chapter_link generation_uuid "$generation" chapter_uuid "$chapter" document_uuid "$uuid"
+          reciprocal_count="$(erl_section_links "$chapter_file" Vocabulary | awk -v uuid="$uuid" '$0==uuid{n++}END{print n+0}')"
+          [[ "$reciprocal_count" == 1 ]] || add_diag error ERL-CHECK-028 "Chapter must contain exactly one reciprocal Memo link" reason chapter_memo_link generation_uuid "$generation" chapter_uuid "$chapter" document_uuid "$uuid"
+        fi
+      fi
       ;;
     *) add_diag error ERL-CHECK-002 "Unknown recorded ERL role" document_uuid "$uuid" role "$role" ;;
   esac
@@ -588,6 +612,62 @@ jq -cr '.[]' "$tmp_dir/references.json" | while read -r reference; do
   esac
   (( document_count++ ))
   check_document_common "$uuid" "$role" "$generation_uuid" "$chapter_uuid" "$work_id"
+done
+
+# Validate active Book Topic <-> durable Chapter bindings and source order.
+for work_file in "$works_root"/*/work.json(N); do
+  jq -e . "$work_file" >/dev/null 2>&1 || continue
+  work_id="$(json_value "$work_file" '.work_id')"
+  generation_uuid="$(json_value "$work_file" '.active_generation_uuid // .active_generation')"
+  [[ -n "$generation_uuid" ]] || continue
+  generation_file="${generation_ids[$generation_uuid]-}"
+  [[ -n "$generation_file" && -f "$generation_file" ]] || continue
+  topic_file="$(doc_path "$generation_uuid" 2>/dev/null)" || continue
+  topic_key="$(doc_attr "$topic_file" key-topic)"
+  source_id="$(json_value "$generation_file" '.source_id')"
+  source_file="$(erl_find_source_file "$vault" "$source_id" 2>/dev/null)" || continue
+  expected_chapters=("${(@f)$(jq -r '.chapters | sort_by(.source_order)[]?.chapter_uuid' "$source_file")}"); expected_chapters=("${(@)expected_chapters:#}")
+  topic_chapters=("${(@f)$(erl_section_links "$topic_file" Chapters)}"); topic_chapters=("${(@)topic_chapters:#}")
+  if [[ "${(j:,:)topic_chapters}" != "${(j:,:)expected_chapters}" ]]; then
+    add_diag error ERL-CHECK-027 "Book Topic Chapters links must be unique and match source order" reason topic_chapter_order work_id "$work_id" generation_uuid "$generation_uuid"
+  fi
+  for chapter_uuid in "${expected_chapters[@]}"; do
+    chapter_file="$(doc_path "$chapter_uuid" 2>/dev/null)" || { add_diag error ERL-CHECK-027 "Registered Chapter Note is missing" reason missing_chapter work_id "$work_id" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid"; continue; }
+    chapter_key="$(doc_attr "$chapter_file" key-topic)"
+    [[ -n "$chapter_key" && "$chapter_key" == "$topic_key" ]] || add_diag error ERL-CHECK-027 "Chapter and active Book Topic key-topic values differ" reason mismatched_key work_id "$work_id" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid"
+    book_links=("${(@f)$(erl_section_links "$chapter_file" Book)}"); book_links=("${(@)book_links:#}")
+    if (( ${#book_links} != 1 )); then
+      add_diag error ERL-CHECK-027 "Chapter must have exactly one active Book Topic attachment" reason chapter_topic_count work_id "$work_id" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid"
+    elif [[ "${book_links[1]}" != "$generation_uuid" ]]; then
+      add_diag error ERL-CHECK-027 "Chapter Book link does not target the active Book Topic" reason wrong_active_topic work_id "$work_id" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid" linked_topic_uuid "${book_links[1]}"
+    fi
+    reciprocal_count="$(erl_section_links "$topic_file" Chapters | awk -v uuid="$chapter_uuid" '$0==uuid{n++}END{print n+0}')"
+    [[ "$reciprocal_count" == 1 ]] || add_diag error ERL-CHECK-027 "Book Topic must have exactly one reciprocal Chapter link" reason topic_chapter_link work_id "$work_id" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid"
+  done
+done
+
+# Validate each Chapter-local Memo Chain against persistent sequence order.
+for generation_file in "$works_root"/*/generations/*.json(N); do
+  generation_uuid="$(json_value "$generation_file" '.generation_uuid // .book_topic_uuid')"
+  work_id="$(json_value "$generation_file" '.work_id')"
+  for chapter_uuid in "${(@f)$(jq -r '.sequence[]?.chapter_uuid // empty' "$generation_file" | sort -u)}"; do
+    [[ -n "$chapter_uuid" ]] || continue
+    chain_nodes=("${(@f)$(jq -r --arg chapter "$chapter_uuid" '[.sequence[]? | select(.chapter_uuid==$chapter)] | sort_by(.ordinal) | .[].document_uuid' "$generation_file")}")
+    for (( chain_i=1; chain_i<=${#chain_nodes}; chain_i++ )); do
+      chain_uuid="${chain_nodes[$chain_i]}"; chain_file="$(doc_path "$chain_uuid" 2>/dev/null)" || continue
+      predecessors=("${(@f)$(erl_section_links "$chain_file" "Memo Chain" "Предыдущее memo")}")
+      successors=("${(@f)$(erl_section_links "$chain_file" "Memo Chain" "Следующее memo")}")
+      chain_edges=("${(@f)$(erl_section_links "$chain_file" "Memo Chain")}")
+      predecessors=("${(@)predecessors:#}"); successors=("${(@)successors:#}"); chain_edges=("${(@)chain_edges:#}")
+      expected_predecessor=""; expected_successor=""
+      (( chain_i > 1 )) && expected_predecessor="${chain_nodes[$((chain_i-1))]}"
+      (( chain_i < ${#chain_nodes} )) && expected_successor="${chain_nodes[$((chain_i+1))]}"
+      if (( ${#predecessors} > 1 || ${#successors} > 1 || ${#chain_edges} != ${#predecessors} + ${#successors} )) || \
+         [[ "${predecessors[1]-}" != "$expected_predecessor" || "${successors[1]-}" != "$expected_successor" ]]; then
+        add_diag error ERL-CHECK-028 "Chapter Memo Chain is not a complete linear reciprocal projection of sequence" reason chain_topology generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid" document_uuid "$chain_uuid" expected_predecessor "$expected_predecessor" expected_successor "$expected_successor"
+      fi
+    done
+  done
 done
 
 # Active lexical identity must be globally unique.

@@ -376,13 +376,15 @@ ERL-BOOK-005
 
 ```text
 ERL-BOOK-006
-Book представлен canonical Topic.
+Book представлен существующей canonical Topic, видимый title которой
+идентифицирует книгу, а не только thematic category.
 ```
 
 ```text
 ERL-BOOK-007
 Book Topic представляет одну semantic processing generation logical work.
 Book Topic UUID является generation identity.
+Generation state не публикуется до materialization и validation Book Topic.
 ```
 
 ```text
@@ -422,8 +424,15 @@ ERL relationships.
 ERL-BOOK-013
 Book Topic создаётся canonical Topic constructor и соблюдает host Topic
 presentation contract для title, :description: и :doclink:.
+Visible title, :description: и :doclink: основаны на canonical logical-work title.
 Logical-work metadata и название произведения хранятся в work state
 и при необходимости в body, не подменяя :key-topic:.
+```
+
+```text
+ERL-BOOK-014
+Создание Book Topic, generation state и active-generation pointer является
+одной recoverable operation; ошибка откатывает только её provisional artifacts.
 ```
 
 ---
@@ -500,6 +509,33 @@ ERL-CHAPTER-010
 ```text
 ERL-CHAPTER-011
 Обычный erl-book-reduce не deprecated'ит durable Chapter Notes.
+```
+
+```text
+ERL-CHAPTER-012
+Каждая materialized Chapter Note наследует exact host-defined `:key-topic:`
+текущей active Book Topic своей generation.
+```
+
+```text
+ERL-CHAPTER-013
+Chapter Note содержит ровно одну canonical link в section `Book` на active Book
+Topic. Book Topic содержит section `Chapters` с unique reciprocal canonical links
+на все materialized Chapters в deterministic source order.
+```
+
+```text
+ERL-CHAPTER-014
+При создании новой active generation reused durable Chapter Note сохраняет UUID,
+заменяет прежнюю Book Topic link и синхронизирует `:key-topic:` с новой Topic.
+Две active Topic attachments для одной Chapter запрещены.
+```
+
+```text
+ERL-CHAPTER-015
+Создание и rebind Chapter–Topic projection входят в ingest transaction: до первой
+mutation сохраняются exact document backups и hashes, а failure/recovery
+восстанавливает прежние bytes без partial generation.
 ```
 
 ```text
@@ -946,6 +982,24 @@ Ingestion одного EXTRACTION_ID идемпотентна относител
 повторный запуск не создаёт второй набор документов молча.
 ```
 
+```text
+ERL-ING-010
+Созданные Vocabulary и Occurrence Memo наследуют exact :key-topic:
+текущей Chapter; existing global Vocabulary не перепривязывается.
+```
+
+```text
+ERL-ING-011
+Каждый sequence Memo и Chapter Note имеют ровно одну reciprocal canonical link
+в sections Chapter и Vocabulary; Chapter links упорядочены по Candidate/source order.
+```
+
+```text
+ERL-ING-012
+Memo creation, attachment, Chapter-local chain mutation, generation state и receipt
+фиксируются одной recoverable per-Candidate transaction.
+```
+
 ---
 
 ## 13. Reading sequence
@@ -994,6 +1048,24 @@ Deprecated documents не входят в active reading sequence.
 в .state/erl/works/. Audit закрытой sequence обеспечивается deprecated Vault
 documents и обязательным compact committed transaction manifest/result,
 который не удаляется обычной очисткой transaction backups.
+```
+
+```text
+ERL-SEQ-009
+Каждая Chapter материализует свою линейную Memo Chain из sequence nodes;
+chain не пересекает Chapter boundary.
+```
+
+```text
+ERL-SEQ-010
+Первая Memo Chapter является head без `Предыдущее memo`; single-node chain
+также не имеет `Следующее memo`.
+```
+
+```text
+ERL-SEQ-011
+Последующие Memos связаны reciprocal links `Предыдущее memo` и
+`Следующее memo`; branches, cycles и duplicates недопустимы.
 ```
 
 ```text
@@ -1551,7 +1623,8 @@ ERL document не содержит plugin-specific AsciiDoc attributes :erl-*.
 ```text
 ERL-CHECK-021
 Book Topic содержит host-compatible :key-topic:, не используемый как WORK_ID,
-и удовлетворяет canonical host Topic presentation contract.
+и удовлетворяет canonical host Topic presentation contract для title logical work.
+Missing Topic, wrong canonical type и wrong Book presentation диагностируются раздельно.
 ```
 
 ```text
@@ -1572,6 +1645,13 @@ ERL-CHECK-024
 ```
 
 ```text
+ERL-CHECK-028
+`erl-check` read-only проверяет exact Chapter key inheritance, reciprocal
+Chapter–Memo attachment и полную linear reciprocal Chapter-local Memo Chain,
+совпадающую с persistent sequence order.
+```
+
+```text
 ERL-CHECK-025
 После committed erl-book-reduce в .state/erl/works/ отсутствуют generation file,
 manifest reference и active pointer каждой закрытой generation; compact committed
@@ -1582,6 +1662,13 @@ transaction manifest/result существует и достаточен для 
 ERL-CHECK-026
 erl-check проверяет canonical target-home layout и выдаёт
 HOME_LAYOUT_MIGRATION_REQUIRED при обнаружении nested vault/ без mutation.
+```
+
+```text
+ERL-CHECK-027
+erl-check read-only проверяет exact Chapter `:key-topic:`, единственную Chapter→Topic
+link, reciprocal unique Topic→Chapter links, их source order и отсутствие двух
+active Topic attachments для одной durable Chapter Note.
 ```
 
 ```text

@@ -10,6 +10,7 @@ emulate -L zsh
 setopt pipe_fail no_unset
 script_dir="${0:A:h}"
 source "$script_dir/lib/common.zsh"
+source "$script_dir/lib/chapter-memo-chain.zsh"
 ERL_COMMAND="erl-vocabulary-ingest"; ERL_JSON_MODE=0
 vault_arg="" extraction_id="" candidate_ordinal="" mode="" lock=""
 cleanup_vocabulary() { erl_lock_release "$lock"; }
@@ -38,6 +39,9 @@ generation="$(jq -r .generation_uuid "$staging_file")"; chapter="$(jq -r .chapte
 generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 20 error NOT_FOUND "Generation not found: $generation"
 [[ "$(jq -r '.status // "active"' "$generation_file")" == active ]] || erl_fail 40 blocked GENERATION_CLOSED_EXTERNALLY "Generation is not active"
 current_source_order="$(erl_chapter_source_order "$vault" "$generation_file" "$chapter" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Chapter is not registered in generation source"
+chapter_file="$(erl_doc_path "$vault" "$chapter" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Chapter Note is missing: $chapter"
+chapter_key="$(erl_doc_attr "$chapter_file" key-topic)"
+[[ -n "$chapter_key" ]] || erl_fail 30 error STATE_CONFLICT "Chapter Note has no canonical key-topic binding"
 max_source_order=0
 for prior_chapter in "${(@f)$(jq -r '.sequence[]?.chapter_uuid // empty' "$generation_file" | sort -u)}"; do
   [[ -n "$prior_chapter" ]] || continue
@@ -63,6 +67,7 @@ for candidate_generation in "$vault/.state/erl/works"/*/generations/*.json(N); d
 done
 if [[ -n "$existing_vocabulary" ]]; then role=occurrence; else role=vocabulary; fi
 last_ordinal="$(jq '[.sequence[]?.ordinal] | max // 0' "$generation_file")"; sequence_ordinal=$((last_ordinal + 1))
+predecessor_uuid="$(jq -r --arg chapter "$chapter" '[.sequence[]? | select(.chapter_uuid==$chapter)] | sort_by(.ordinal) | last | .document_uuid // empty' "$generation_file")"
 plan="$(jq -cn --arg extraction_id "$extraction_id" --argjson candidate "$candidate_ordinal" --arg role "$role" --argjson identity "$identity" --arg existing "$existing_vocabulary" --argjson sequence_ordinal "$sequence_ordinal" '{extraction_id:$extraction_id,candidate_ordinal:$candidate,role:$role,lexical_identity:$identity,existing_vocabulary_uuid:(if $existing=="" then null else $existing end),prospective_sequence_ordinal:$sequence_ordinal}')"
 [[ "$mode" == apply ]] || erl_emit ok OK false "$plan" '[]' 0
 
@@ -75,10 +80,24 @@ fi
 txid="$(erl_uuid_v4)" || erl_fail 50 error IO_ERROR "Cannot generate TXID"
 tx_dir="$vault/.state/erl/transactions/$txid"; mkdir -p -- "$tx_dir/backups" || erl_fail 50 error IO_ERROR "Cannot create transaction journal"
 cp -- "$generation_file" "$tx_dir/backups/generation.json"
-jq -cn --arg txid "$txid" --arg generation "$generation" --arg extraction "$extraction_id" --argjson candidate "$candidate_ordinal" --arg generation_path "$generation_file" --arg generation_pre_hash "$(erl_sha256_file "$generation_file")" '{schema_version:1,txid:$txid,operation:"erl-vocabulary-ingest",phase:"applying",generation_uuid:$generation,generation_path:$generation_path,generation_pre_hash:$generation_pre_hash,extraction_id:$extraction,candidate_ordinal:$candidate}' | erl_atomic_write "$tx_dir/transaction.json" || erl_fail 50 error IO_ERROR "Cannot write transaction journal"
+cp -- "$chapter_file" "$tx_dir/backups/chapter.adoc"
+predecessor_file=""
+if [[ -n "$predecessor_uuid" ]]; then
+  predecessor_file="$(erl_doc_path "$vault" "$predecessor_uuid" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Chapter chain predecessor is missing: $predecessor_uuid"
+  cp -- "$predecessor_file" "$tx_dir/backups/predecessor.adoc"
+fi
+jq -cn --arg txid "$txid" --arg generation "$generation" --arg extraction "$extraction_id" --argjson candidate "$candidate_ordinal" --arg generation_path "$generation_file" --arg generation_pre_hash "$(erl_sha256_file "$generation_file")" --arg chapter_uuid "$chapter" --arg chapter_path "$chapter_file" --arg chapter_pre_hash "$(erl_sha256_file "$chapter_file")" --arg predecessor_uuid "$predecessor_uuid" --arg predecessor_path "$predecessor_file" --arg predecessor_pre_hash "$([[ -n "$predecessor_file" ]] && erl_sha256_file "$predecessor_file")" '{schema_version:1,txid:$txid,operation:"erl-vocabulary-ingest",phase:"applying",generation_uuid:$generation,generation_path:$generation_path,generation_pre_hash:$generation_pre_hash,extraction_id:$extraction,candidate_ordinal:$candidate,chapter:{uuid:$chapter_uuid,path:$chapter_path,pre_hash:$chapter_pre_hash},predecessor:(if $predecessor_uuid=="" then null else {uuid:$predecessor_uuid,path:$predecessor_path,pre_hash:$predecessor_pre_hash} end)}' | erl_atomic_write "$tx_dir/transaction.json" || erl_fail 50 error IO_ERROR "Cannot write transaction journal"
+
+rollback_candidate() {
+  [[ -n "${document_file:-}" ]] && rm -f -- "$document_file"
+  cp -- "$tx_dir/backups/generation.json" "$generation_file"
+  cp -- "$tx_dir/backups/chapter.adoc" "$chapter_file"
+  [[ -n "$predecessor_file" && -f "$tx_dir/backups/predecessor.adoc" ]] && cp -- "$tx_dir/backups/predecessor.adoc" "$predecessor_file"
+  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+}
 
 surface="$(jq -r .surface_form <<< "$candidate")"; context="$(erl_json_escape_asciidoc "$(jq -r .context <<< "$candidate")")"
-memo_fname="$(ZK_HOME="$vault" "$memo_constructor" "$surface" memo "$surface")" || erl_fail 50 error IO_ERROR "Canonical Memo constructor failed"
+memo_fname="$(ZK_HOME="$vault" "$memo_constructor" "$surface" memo "$surface" ":key-topic: $chapter_key")" || { rollback_candidate; erl_fail 50 error IO_ERROR "Canonical Memo constructor failed"; }
 document_uuid="${memo_fname%.adoc}"; document_file="$vault/notes/$memo_fname"
 if [[ "$role" == vocabulary ]]; then
   translations="$(erl_json_escape_asciidoc "$(jq -r '.enrichment.translation_ru|join(", ")' <<< "$candidate")")"
@@ -101,11 +120,25 @@ else
   } >> "$document_file"
 fi
 
-jq --arg document_uuid "$document_uuid" --arg document_path "$document_file" --arg document_hash "$(erl_sha256_file "$document_file")" '.phase="document_created"|.document_uuid=$document_uuid|.document_path=$document_path|.document_hash=$document_hash' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || {
-  rm -f -- "$document_file"
-  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+chapter_title="$(awk 'NR==1{sub(/^= /,"");print;exit}' "$chapter_file")"
+erl_append_section_link "$document_file" Chapter "$chapter" "$chapter_title" || { rollback_candidate; erl_fail 60 error TRANSACTION_FAILED "Cannot attach Memo to Chapter"; }
+erl_append_link_to_section "$chapter_file" Vocabulary "$document_uuid" "$surface" || { rollback_candidate; erl_fail 60 error TRANSACTION_FAILED "Cannot attach Chapter to Memo"; }
+if [[ -n "$predecessor_uuid" ]]; then
+  erl_memo_chain_add_predecessor "$document_file" "$predecessor_uuid" || { rollback_candidate; erl_fail 60 error TRANSACTION_FAILED "Cannot link Memo predecessor"; }
+  erl_memo_chain_add_successor "$predecessor_file" "$document_uuid" || { rollback_candidate; erl_fail 60 error TRANSACTION_FAILED "Cannot link Memo successor"; }
+fi
+
+jq --arg document_uuid "$document_uuid" --arg document_path "$document_file" --arg document_hash "$(erl_sha256_file "$document_file")" --arg chapter_hash "$(erl_sha256_file "$chapter_file")" --arg predecessor_hash "$([[ -n "$predecessor_file" ]] && erl_sha256_file "$predecessor_file")" '.phase="documents_updated"|.document_uuid=$document_uuid|.document_path=$document_path|.document_hash=$document_hash|.chapter.post_hash=$chapter_hash|if .predecessor then .predecessor.post_hash=$predecessor_hash else . end' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || {
+  rollback_candidate
   erl_fail 60 error TRANSACTION_FAILED "Cannot record created document recovery metadata"
 }
+if [[ "${ERL_TEST_FAIL_VOCABULARY_AFTER_DOCUMENTS:-0}" == 1 ]]; then
+  rollback_candidate
+  erl_fail 60 error TRANSACTION_FAILED "Injected failure after Chapter Memo document mutations"
+fi
+if [[ "${ERL_TEST_INTERRUPT_VOCABULARY_AFTER_DOCUMENTS:-0}" == 1 ]]; then
+  erl_fail 60 blocked RECOVERY_REQUIRED "Injected interruption after Chapter Memo document mutations"
+fi
 
 total_candidates="$(jq '.candidates|length' "$staging_file")"
 receipt_candidate="$(jq -cn --argjson ordinal "$candidate_ordinal" --arg role "$role" --arg document_uuid "$document_uuid" --arg vocabulary_uuid "$vocabulary_uuid" --argjson sequence_ordinal "$sequence_ordinal" '{ordinal:$ordinal,status:"completed",role:$role,document_uuid:$document_uuid,sequence_ordinal:$sequence_ordinal} + if $vocabulary_uuid=="" then {} else {vocabulary_uuid:$vocabulary_uuid} end')"
@@ -119,22 +152,17 @@ jq --argjson entry "$entry" --arg document_uuid "$document_uuid" --arg role "$ro
     .status=(if ([.candidates[]|select(.status=="completed")]|length)>=$total then "completed" else "applying" end)) as $new |
   .ingestion_receipts=(($all|map(select(.extraction_id!=$extraction)))+[$new])
 ' "$generation_file" | erl_atomic_write "$generation_file" || {
-  rm -f -- "$document_file"
-  cp "$tx_dir/backups/generation.json" "$generation_file"
-  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+  rollback_candidate
   erl_fail 60 error TRANSACTION_FAILED "Cannot update generation state"
 }
-jq --arg hash "$(erl_sha256_file "$generation_file")" '.phase="state_updated"|.generation_post_hash=$hash' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || {
-  rm -f -- "$document_file"
-  cp "$tx_dir/backups/generation.json" "$generation_file"
-  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+jq --arg hash "$(erl_sha256_file "$generation_file")" --arg chapter_hash "$(erl_sha256_file "$chapter_file")" --arg predecessor_hash "$([[ -n "$predecessor_file" ]] && erl_sha256_file "$predecessor_file")" '.phase="state_updated"|.generation_post_hash=$hash|.chapter.post_hash=$chapter_hash|if .predecessor then .predecessor.post_hash=$predecessor_hash else . end' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || {
+  rollback_candidate
   erl_fail 60 error TRANSACTION_FAILED "Cannot record updated state recovery metadata"
 }
 
 set +e; check_output="$(erl_run_check "$vault" generation "$generation")"; check_rc=$?; set -e
 if (( check_rc != 0 )); then
-  rm -f -- "$document_file"; cp "$tx_dir/backups/generation.json" "$generation_file"
-  jq '.phase="rolled_back"' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json" || true
+  rollback_candidate
   erl_fail 60 error TRANSACTION_FAILED "Post-ingest validation failed and changes were rolled back" "$(jq -cn --argjson check "$check_output" '{check:$check}')"
 fi
 jq --arg document_uuid "$document_uuid" '.phase="committed"|.document_uuid=$document_uuid' "$tx_dir/transaction.json" | erl_atomic_write "$tx_dir/transaction.json"; rm -rf -- "$tx_dir/backups"

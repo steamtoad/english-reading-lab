@@ -32,9 +32,22 @@ write_doc() {
 
 $body" > "$fixture/notes/$uuid.adoc"
 }
-write_doc "$generation" 'Reading - ключевая тема' topic $'== Book\n\nTitle:: Handoff Book\nReading topic:: Reading' $'\n:key-topic: Reading'
+write_doc "$generation" 'Handoff Book' topic $'== Book\n\nTitle:: Handoff Book\nReading topic:: Reading' $'\n:key-topic: Reading'
+print -r -- "
+== Chapters
+
+link:$chapter1.adoc[Chapter 1]
+link:$chapter2.adoc[Chapter 2]
+link:$chapter3.adoc[Chapter 3]" >> "$fixture/notes/$generation.adoc"
 for item in "${chapter1}:Chapter 1" "${chapter2}:Chapter 2" "${chapter3}:Chapter 3"; do
-  uuid="${item%%:*}"; title="${item#*:}"; write_doc "$uuid" "$title" note $'== Source\n\nBook:: Handoff Book\nChapter locator:: source.xhtml'
+  uuid="${item%%:*}"; title="${item#*:}"; write_doc "$uuid" "$title" note $'== Source\n\nBook:: Handoff Book\nChapter locator:: source.xhtml' $'\n:key-topic: Reading'
+done
+for item in "${chapter1}:Chapter 1" "${chapter2}:Chapter 2" "${chapter3}:Chapter 3"; do
+  uuid="${item%%:*}"
+  print -r -- "
+== Book
+
+link:$generation.adoc[Handoff Book]" >> "$fixture/notes/$uuid.adoc"
 done
 for item in "${memo1}:one" "${memo2}:two" "${memo3}:three"; do
   uuid="${item%%:*}"; lemma="${item#*:}"
@@ -46,8 +59,37 @@ Lexical type:: word
 
 == Meaning
 
-Definition:: readable $lemma"
+Definition:: readable $lemma" $'\n:key-topic: Reading'
 done
+print -r -- "
+== Chapter
+
+link:$chapter1.adoc[Chapter 1]
+
+== Memo Chain
+
+link:$memo2.adoc[Следующее memo]" >> "$fixture/notes/$memo1.adoc"
+print -r -- "
+== Chapter
+
+link:$chapter1.adoc[Chapter 1]
+
+== Memo Chain
+
+link:$memo1.adoc[Предыдущее memo]" >> "$fixture/notes/$memo2.adoc"
+print -r -- "
+== Chapter
+
+link:$chapter2.adoc[Chapter 2]" >> "$fixture/notes/$memo3.adoc"
+print -r -- "
+== Vocabulary
+
+link:$memo1.adoc[one]
+link:$memo2.adoc[two]" >> "$fixture/notes/$chapter1.adoc"
+print -r -- "
+== Vocabulary
+
+link:$memo3.adoc[three]" >> "$fixture/notes/$chapter2.adoc"
 
 print -r -- "{\"schema_version\":1,\"work_id\":\"$work\",\"title\":\"Handoff Book\",\"generation_uuids\":[\"$generation\"],\"active_generation_uuid\":\"$generation\"}" > "$fixture/.state/erl/works/book/work.json"
 print -r -- "{\"schema_version\":1,\"source_id\":\"$source_id\",\"work_id\":\"$work\",\"source_fingerprint\":\"sha256:$(printf 'a%.0s' {1..64})\",\"chapters\":[{\"chapter_uuid\":\"$chapter1\",\"source_id\":\"$source_id\",\"chapter_locator\":\"one.xhtml\",\"source_order\":1},{\"chapter_uuid\":\"$chapter2\",\"source_id\":\"$source_id\",\"chapter_locator\":\"two.xhtml\",\"source_order\":2},{\"chapter_uuid\":\"$chapter3\",\"source_id\":\"$source_id\",\"chapter_locator\":\"three.xhtml\",\"source_order\":3}]}" > "$fixture/.state/erl/works/book/sources/$source_id.json"

@@ -33,13 +33,13 @@ mkdir -p "$fixture/notes" \
   "$fixture/.state/erl/transactions"
 
 write_topic() {
-  print -r -- "= English Reading - ключевая тема
+  print -r -- "= Example Book
 :date: 2026-08-29
 :keywords: topic
 :type: topic
 :author: test
-:description: English Reading - ключевая тема
-:doclink: link:$generation.adoc[English Reading - ключевая тема]
+:description: Example Book
+:doclink: link:$generation.adoc[Example Book]
 :docfilename: $generation.adoc
 :key-topic: English Reading
 
@@ -49,6 +49,10 @@ Title:: Example Book
 Reading topic:: English Reading
 
 This card is the reading hub for _Example Book_.
+
+== Chapters
+
+link:$chapter.adoc[Chapter 1]
 " > "$fixture/notes/$generation.adoc"
 }
 
@@ -61,6 +65,16 @@ write_note() {
 :description: Chapter 1
 :doclink: link:$chapter.adoc[Chapter 1]
 :docfilename: $chapter.adoc
+:key-topic: English Reading
+
+== Book
+
+link:$generation.adoc[Example Book]
+
+== Vocabulary
+
+link:$vocabulary.adoc[Forlorn]
+link:$occurrence.adoc[Forlorn occurrence]
 
 == Source
 
@@ -79,6 +93,7 @@ write_vocabulary() {
 :description: forlorn
 :doclink: link:$vocabulary.adoc[forlorn]
 :docfilename: $vocabulary.adoc${deprecated}
+:key-topic: English Reading
 
 == Lexical identity
 
@@ -90,6 +105,14 @@ Lexical type:: word
 
 Definition:: sad and lonely
 Translation:: покинутый
+
+== Chapter
+
+link:$chapter.adoc[Chapter 1]
+
+== Memo Chain
+
+link:$occurrence.adoc[Следующее memo]
 " > "$fixture/notes/$vocabulary.adoc"
 }
 
@@ -102,6 +125,7 @@ write_occurrence() {
 :description: forlorn occurrence
 :doclink: link:$occurrence.adoc[forlorn occurrence]
 :docfilename: $occurrence.adoc
+:key-topic: English Reading
 
 == Vocabulary
 
@@ -110,6 +134,14 @@ link:$vocabulary.adoc[Forlorn]
 == Context
 
 The context.
+
+== Chapter
+
+link:$chapter.adoc[Chapter 1]
+
+== Memo Chain
+
+link:$vocabulary.adoc[Предыдущее memo]
 " > "$fixture/notes/$occurrence.adoc"
 }
 
@@ -117,6 +149,7 @@ write_state() {
   print -r -- "{
   \"schema_version\": 1,
   \"work_id\": \"$work_id\",
+  \"title\": \"Example Book\",
   \"generation_uuids\": [\"$generation\"],
   \"active_generation_uuid\": \"$generation\"
 }" > "$fixture/.state/erl/works/example/work.json"
@@ -175,6 +208,22 @@ write_occurrence
 write_state
 
 assert_json 0 '.status=="ok" and .code=="OK" and .changed==false and .data.counts.errors==0'
+
+# Chapter Memo attachment and chain diagnostics are specific and read-only.
+cp "$fixture/notes/$occurrence.adoc" "$fixture/occurrence-chain.saved"
+sed -i.bak 's/:key-topic: English Reading/:key-topic: Wrong/' "$fixture/notes/$occurrence.adoc"; rm -f -- "$fixture/notes/$occurrence.adoc.bak"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-028" and .reason=="mismatched_key")'
+cp "$fixture/occurrence-chain.saved" "$fixture/notes/$occurrence.adoc"
+sed -i.bak "/link:$chapter.adoc\[Chapter 1\]/d" "$fixture/notes/$occurrence.adoc"; rm -f -- "$fixture/notes/$occurrence.adoc.bak"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-028" and .reason=="memo_chapter_link")'
+cp "$fixture/occurrence-chain.saved" "$fixture/notes/$occurrence.adoc"
+sed -i.bak "/\[Предыдущее memo\]/d" "$fixture/notes/$occurrence.adoc"; rm -f -- "$fixture/notes/$occurrence.adoc.bak"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-028" and .reason=="chain_topology")'
+cp "$fixture/occurrence-chain.saved" "$fixture/notes/$occurrence.adoc"
+print -r -- "link:$chapter.adoc[Ветка: conflict]" >> "$fixture/notes/$occurrence.adoc"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-028" and .reason=="chain_topology")'
+mv "$fixture/occurrence-chain.saved" "$fixture/notes/$occurrence.adoc"
+
 assert_json 0 '.status=="ok" and .data.scope.kind=="generation"' --generation "$generation"
 assert_json 20 '.status=="error" and .code=="NOT_FOUND"' --work 99999999-9999-4999-8999-999999999999
 
@@ -281,11 +330,18 @@ jq '.active_generation_uuid=null' "$fixture/.state/erl/works/example/work.json.s
 assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-023")'
 mv "$fixture/.state/erl/works/example/work.json.saved" "$fixture/.state/erl/works/example/work.json"
 
-# Book Topic presentation is canonical, not merely type-compatible.
+# Book Topic diagnostics distinguish missing, wrong type and wrong presentation.
 cp "$fixture/notes/$generation.adoc" "$fixture/notes/$generation.adoc.saved"
-sed -i.bak 's/:description: English Reading - ключевая тема/:description: Wrong/' "$fixture/notes/$generation.adoc"
+rm -f -- "$fixture/notes/$generation.adoc"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-021" and .diagnostic_kind=="missing_topic")'
+cp "$fixture/notes/$generation.adoc.saved" "$fixture/notes/$generation.adoc"
+sed -i.bak 's/:type: topic/:type: note/' "$fixture/notes/$generation.adoc"
 rm -f -- "$fixture/notes/$generation.adoc.bak"
-assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-021")'
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-021" and .diagnostic_kind=="wrong_type")'
+cp "$fixture/notes/$generation.adoc.saved" "$fixture/notes/$generation.adoc"
+sed -i.bak 's/= Example Book/= English Reading - ключевая тема/' "$fixture/notes/$generation.adoc"
+rm -f -- "$fixture/notes/$generation.adoc.bak"
+assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-021" and .diagnostic_kind=="wrong_presentation")'
 mv "$fixture/notes/$generation.adoc.saved" "$fixture/notes/$generation.adoc"
 
 # Scoped validation must not leak diagnostics from unrelated works.

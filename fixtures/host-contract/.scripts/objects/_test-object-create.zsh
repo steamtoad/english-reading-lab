@@ -11,6 +11,8 @@ key_topic=""
 if [[ "$object_type" == topic ]]; then key_topic="$1"; shift; fi
 keywords="${1:-$object_type}"
 description="${2:-$title}"
+shift $(( $# >= 2 ? 2 : $# ))
+extra_attrs=("$@")
 vault="${ZK_HOME:?ZK_HOME is required by the test host contract}"
 mkdir -p -- "$vault/notes"
 if command -v uuid >/dev/null 2>&1; then
@@ -33,6 +35,13 @@ filename="$document_uuid.adoc"; target="$vault/notes/$filename"
   print -r -- ":doclink: link:${filename}[$description]"
   print -r -- ":docfilename: $filename"
   [[ "$object_type" == topic ]] && print -r -- ":key-topic: $key_topic"
+  for attr in "${extra_attrs[@]}"; do
+    [[ "$attr" =~ '^:[[:alnum:]_-]+:[[:space:]].*$' && "$attr" != :erl-* ]] || {
+      print -ru2 -- "ERROR invalid test extra attribute: $attr"
+      exit 1
+    }
+    print -r -- "$attr"
+  done
   print -r -- ""
   print -r -- ""
 } > "$target"

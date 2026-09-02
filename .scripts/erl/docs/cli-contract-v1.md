@@ -49,6 +49,8 @@ CLI не source'ит `.scripts/zettelkasten/`.
 ├── erl-chapter-export.zsh
 ├── erl-extraction-stage.zsh
 ├── erl-transaction-recover.zsh
+├── erl-chapter-memo-chain-migrate.zsh
+├── erl-chapter-topic-binding-migrate.zsh
 ├── erl-chapter-chain-handoff.zsh
 ├── erl-card-content-repair.zsh
 ├── erl-home-layout-migrate.zsh
@@ -362,6 +364,18 @@ erl-book-ingest.zsh \
 
 Vault UUID генерирует только canonical host constructor.
 
+Book Topic materialization соблюдает `ERL-BOOK-006`, `ERL-BOOK-007`,
+`ERL-BOOK-013` и `ERL-BOOK-014`: canonical logical-work title определяет
+visible Topic title, `:description:` и `:doclink:`, а `--key-topic` остаётся
+отдельной thematic classification. Success публикуется только после
+post-construction validation и финального read-only `erl-check` (`ERL-CHECK-021`);
+ошибка откатывает provisional Topic и state.
+
+Chapter–Topic projection соблюдает `ERL-CHAPTER-012..015`: каждая Chapter
+Note наследует exact Topic `:key-topic:` и ссылается на active Topic,
+а Topic ссылается на Chapters в source order. Initial binding и rebind
+reused durable Chapters входят в ту же ingest transaction с exact backups.
+
 Dry-run не генерирует случайные persistent identifiers: вместо фиктивных значений он возвращает `null` и признаки `will_generate_work_id` / `will_generate_source_id`. Это сохраняет повторяемость dry-run при неизменном filesystem state.
 
 ### Dry-run
@@ -672,6 +686,9 @@ load Candidate
 -> exists:
        create canonical Occurrence Memo
        role = occurrence
+-> inherit exact Chapter :key-topic:
+-> add reciprocal Memo Chapter / Chapter Vocabulary links
+-> append to the Chapter-local reciprocal Memo Chain
 -> append generation sequence node
 -> update persistent state
 ```
@@ -1096,6 +1113,36 @@ erl-transaction-recover.zsh --vault "$VAULT" --txid "$TXID" --apply --json
 Для `erl-vocabulary-ingest` recovery либо завершает commit, если receipt уже
 записан, либо удаляет только неизменённый orphan document. При несовпадении
 recorded hashes операция блокируется с `RECOVERY_CONFLICT`.
+
+## `erl-chapter-memo-chain-migrate.zsh`
+
+Explicit migration legacy projection по `ERL-ING-010..012`, `ERL-SEQ-009..011`
+и `ERL-CHECK-028`:
+
+```bash
+erl-chapter-memo-chain-migrate.zsh --vault "$VAULT" --generation "$GENERATION" --dry-run --json
+erl-chapter-memo-chain-migrate.zsh --vault "$VAULT" --generation "$GENERATION" --apply --json
+```
+
+Dry-run mutation-free. Apply добавляет только отсутствующую canonical
+projection и блокируется при conflicting user-owned sections. Journal хранит
+exact backups и может быть откачен `erl-transaction-recover`.
+
+## `erl-chapter-topic-binding-migrate.zsh`
+
+Explicit migration legacy Chapter–Topic projection по `ERL-CHAPTER-012..015` и
+`ERL-CHECK-027`:
+
+```bash
+erl-chapter-topic-binding-migrate.zsh --vault "$VAULT" --generation "$GENERATION" --dry-run --json
+erl-chapter-topic-binding-migrate.zsh --vault "$VAULT" --generation "$GENERATION" --apply --json
+```
+
+Target generation должна быть active. Dry-run mutation-free показывает
+deterministic plan. Apply синхронизирует Chapter keys, Chapter `Book` и Topic
+`Chapters`, создавая journal с exact backups до mutation. Conflicting
+user-owned sections дают `STATE_CONFLICT`; interrupted apply откатывается
+через `erl-transaction-recover.zsh` с hash conflict detection.
 
 ## `erl-card-content-repair.zsh`
 

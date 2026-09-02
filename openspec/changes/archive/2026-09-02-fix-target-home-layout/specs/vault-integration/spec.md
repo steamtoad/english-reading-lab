@@ -27,6 +27,13 @@ ERL MUST использовать единый target Zettelkasten home как �
 
 Persistent ERL documents MUST храниться как обычные canonical Vault documents с UUID identity и filename `UUID.adoc` в `<ZETTELKASTEN_HOME>/notes/`.
 
+#### Scenario: Persistent ERL document is stored in Vault
+
+- **WHEN** ERL сохраняет новый persistent document в Vault
+- **THEN** документ SHALL иметь canonical Vault UUID
+- **AND** filename SHALL соответствовать этому UUID в форме `UUID.adoc`
+- **AND** документ SHALL находиться в canonical Vault document namespace
+
 #### Scenario: Persistent ERL document is stored in target home
 
 - **WHEN** ERL сохраняет новый persistent document
