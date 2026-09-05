@@ -19,6 +19,7 @@
 *~
 
 # Temporary files
+/audit/
 *.tmp
 *.temp
 .state

@@ -1,0 +1,759 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-09-05",
+  "audit_path": "audit/2026-09-05/7e56c022-a8fc-11f1-8322-b73dbdeee0d4.adoc",
+  "audit_sha256": "ed9cac37563e7c198a08ee50ad02483b0e9d4feb0a0c55c7de54ab99ed6ec81b",
+  "repository_commit": "918ef5be5c7679fb35172c0c18a492ef5877d3e9",
+  "status": "planned-specifications-only",
+  "findings": {
+    "F01": [
+      "fix-work-state-path-safety"
+    ],
+    "F02": [
+      "fix-mutation-lock-ownership",
+      "fix-cross-operation-mutation-serialization"
+    ],
+    "F03": [
+      "fix-cli-error-propagation"
+    ],
+    "F04": [
+      "fix-cli-error-propagation",
+      "fix-chapter-export-streaming"
+    ],
+    "F05": [
+      "fix-source-policy-provenance"
+    ],
+    "F06": [
+      "fix-runtime-schema-conformance"
+    ],
+    "F07": [
+      "fix-transaction-recovery-coverage"
+    ],
+    "F08": [
+      "fix-empty-chapter-ingestion"
+    ],
+    "F09": [
+      "fix-source-format-normalization"
+    ],
+    "F10": [
+      "fix-complete-test-suite-gate"
+    ]
+  },
+  "operational_gaps": {
+    "Установка": [
+      "add-reproducible-erl-bootstrap"
+    ],
+    "Host integration": [
+      "add-host-compatibility-certification"
+    ],
+    "Переносимость": [
+      "fix-source-format-normalization",
+      "fix-complete-test-suite-gate",
+      "add-host-compatibility-certification"
+    ],
+    "Source provenance": [
+      "fix-source-policy-provenance"
+    ],
+    "Извлечение": [
+      "add-lexi-extraction-evaluation"
+    ],
+    "Пользовательская известность слов": [
+      "add-lexi-extraction-evaluation"
+    ],
+    "Enrichment": [
+      "add-durable-enrichment-provenance"
+    ],
+    "Backup и restore": [
+      "add-erl-backup-restore"
+    ],
+    "Операционное сопровождение": [
+      "fix-transaction-recovery-coverage",
+      "add-reproducible-erl-bootstrap",
+      "add-erl-backup-restore"
+    ],
+    "Масштаб": [
+      "add-erl-performance-baseline"
+    ],
+    "Релизный процесс": [
+      "add-release-readiness-gates"
+    ],
+    "Документация": [
+      "add-reproducible-erl-bootstrap",
+      "fix-openspec-contract-authority"
+    ]
+  },
+  "script_risks": {
+    "erl-book-ingest.zsh": [
+      "fix-work-state-path-safety",
+      "fix-cli-error-propagation",
+      "fix-runtime-schema-conformance",
+      "fix-transaction-recovery-coverage"
+    ],
+    "erl-book-reduce.zsh": [
+      "fix-cross-operation-mutation-serialization",
+      "fix-transaction-recovery-coverage"
+    ],
+    "erl-book-title-key-topic-migrate.zsh": [
+      "fix-cross-operation-mutation-serialization",
+      "fix-transaction-recovery-coverage",
+      "fix-asciidoc-projection-safety"
+    ],
+    "erl-card-content-repair.zsh": [
+      "fix-transaction-recovery-coverage",
+      "fix-asciidoc-projection-safety",
+      "add-durable-enrichment-provenance"
+    ],
+    "erl-chapter-chain-handoff.zsh": [
+      "fix-cross-operation-mutation-serialization",
+      "fix-empty-chapter-ingestion",
+      "fix-asciidoc-projection-safety"
+    ],
+    "erl-chapter-export.zsh": [
+      "fix-cli-error-propagation",
+      "fix-chapter-export-streaming",
+      "fix-source-policy-provenance",
+      "fix-source-format-normalization"
+    ],
+    "erl-chapter-memo-chain-migrate.zsh": [
+      "fix-transaction-recovery-coverage",
+      "fix-complete-test-suite-gate",
+      "fix-asciidoc-projection-safety"
+    ],
+    "erl-chapter-topic-binding-migrate.zsh": [
+      "fix-cross-operation-mutation-serialization",
+      "fix-complete-test-suite-gate",
+      "fix-asciidoc-projection-safety"
+    ],
+    "erl-chapter-vocabulary-ingest.zsh": [
+      "fix-empty-chapter-ingestion",
+      "fix-cli-error-propagation",
+      "fix-cross-operation-mutation-serialization"
+    ],
+    "erl-check.zsh": [
+      "fix-runtime-schema-conformance",
+      "fix-asciidoc-projection-safety",
+      "add-erl-performance-baseline"
+    ],
+    "erl-classic-reduce-reconcile.zsh": [
+      "fix-transaction-recovery-coverage",
+      "fix-cross-operation-mutation-serialization"
+    ],
+    "erl-extraction-stage.zsh": [
+      "fix-mutation-lock-ownership",
+      "fix-cross-operation-mutation-serialization",
+      "fix-runtime-schema-conformance",
+      "fix-source-policy-provenance"
+    ],
+    "erl-home-layout-migrate.zsh": [
+      "fix-transaction-recovery-coverage",
+      "add-host-compatibility-certification"
+    ],
+    "erl-state-migrate.zsh": [
+      "fix-runtime-schema-conformance",
+      "fix-transaction-recovery-coverage"
+    ],
+    "erl-transaction-recover.zsh": [
+      "fix-work-state-path-safety",
+      "fix-cross-operation-mutation-serialization",
+      "fix-transaction-recovery-coverage",
+      "add-erl-backup-restore"
+    ],
+    "erl-vocabulary-ingest.zsh": [
+      "fix-cross-operation-mutation-serialization",
+      "fix-transaction-recovery-coverage",
+      "fix-empty-chapter-ingestion",
+      "add-durable-enrichment-provenance"
+    ],
+    "erl-work-rename.zsh": [
+      "fix-work-state-path-safety",
+      "fix-cross-operation-mutation-serialization",
+      "fix-transaction-recovery-coverage"
+    ],
+    "lib/common.zsh": [
+      "fix-work-state-path-safety",
+      "fix-mutation-lock-ownership",
+      "fix-cli-error-propagation",
+      "fix-runtime-schema-conformance"
+    ],
+    "lib/source.zsh": [
+      "fix-source-policy-provenance",
+      "fix-source-format-normalization",
+      "fix-chapter-export-streaming"
+    ],
+    "lib/chapter-memo-chain.zsh": [
+      "fix-asciidoc-projection-safety"
+    ],
+    "lib/card-content.zsh": [
+      "fix-asciidoc-projection-safety",
+      "add-durable-enrichment-provenance"
+    ],
+    "dev/erl-openclaw-agent-setup.zsh": [
+      "add-reproducible-erl-bootstrap",
+      "fix-complete-test-suite-gate",
+      "fix-cross-operation-mutation-serialization"
+    ],
+    "dev/erl-skills-check.zsh": [
+      "fix-complete-test-suite-gate",
+      "fix-openspec-contract-authority",
+      "add-reproducible-erl-bootstrap"
+    ],
+    "dev/erl-delta-test-naming-check.zsh": [
+      "fix-complete-test-suite-gate",
+      "fix-openspec-contract-authority"
+    ],
+    "dev/erl-openspec-archive-check.zsh": [
+      "fix-complete-test-suite-gate",
+      "fix-openspec-contract-authority",
+      "add-release-readiness-gates"
+    ]
+  },
+  "implementation_order": [
+    "fix-work-state-path-safety",
+    "fix-cli-error-propagation",
+    "fix-complete-test-suite-gate",
+    "fix-mutation-lock-ownership",
+    "fix-chapter-export-streaming",
+    "fix-runtime-schema-conformance",
+    "fix-openspec-contract-authority",
+    "fix-cross-operation-mutation-serialization",
+    "add-reproducible-erl-bootstrap",
+    "fix-transaction-recovery-coverage",
+    "add-erl-performance-baseline",
+    "fix-source-policy-provenance",
+    "fix-empty-chapter-ingestion",
+    "fix-asciidoc-projection-safety",
+    "fix-source-format-normalization",
+    "add-durable-enrichment-provenance",
+    "add-erl-backup-restore",
+    "add-host-compatibility-certification",
+    "add-lexi-extraction-evaluation",
+    "add-release-readiness-gates"
+  ],
+  "changes": [
+    {
+      "name": "fix-work-state-path-safety",
+      "priority": "P1",
+      "recommendation_level": 1,
+      "dependencies": [],
+      "audit_refs": [
+        "F01",
+        "A-PATHS"
+      ],
+      "primary_test": "tests/erl-work-state-path-safety.zsh",
+      "requirement_ids": [
+        "ERL-PATH-001",
+        "ERL-PATH-002",
+        "ERL-PATH-003"
+      ],
+      "capabilities": [
+        "engineering-safety",
+        "work-generation"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-mutation-lock-ownership",
+      "priority": "P1",
+      "recommendation_level": 1,
+      "dependencies": [
+        "fix-work-state-path-safety"
+      ],
+      "audit_refs": [
+        "F02",
+        "A-LOCK-OWNERSHIP"
+      ],
+      "primary_test": "tests/erl-mutation-lock-ownership.zsh",
+      "requirement_ids": [
+        "ERL-LOCK-001",
+        "ERL-LOCK-002"
+      ],
+      "capabilities": [
+        "engineering-safety"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-cross-operation-mutation-serialization",
+      "priority": "P1",
+      "recommendation_level": 2,
+      "dependencies": [
+        "fix-work-state-path-safety",
+        "fix-mutation-lock-ownership"
+      ],
+      "audit_refs": [
+        "F02",
+        "A-CONCURRENCY",
+        "A-GIT-PREFLIGHT"
+      ],
+      "primary_test": "tests/erl-cross-operation-mutation-serialization.zsh",
+      "requirement_ids": [
+        "ERL-CONCURRENCY-001",
+        "ERL-CONCURRENCY-002",
+        "ERL-CONCURRENCY-003"
+      ],
+      "capabilities": [
+        "engineering-safety"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-cli-error-propagation",
+      "priority": "P1",
+      "recommendation_level": 1,
+      "dependencies": [],
+      "audit_refs": [
+        "F03",
+        "F04",
+        "A-REPORTING"
+      ],
+      "primary_test": "tests/erl-cli-error-propagation.zsh",
+      "requirement_ids": [
+        "ERL-CLI-001",
+        "ERL-CLI-002",
+        "ERL-CLI-003"
+      ],
+      "capabilities": [
+        "engineering-safety"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-chapter-export-streaming",
+      "priority": "P1",
+      "recommendation_level": 1,
+      "dependencies": [
+        "fix-cli-error-propagation"
+      ],
+      "audit_refs": [
+        "F04",
+        "A-LARGE-CHAPTER"
+      ],
+      "primary_test": "tests/erl-chapter-export-streaming.zsh",
+      "requirement_ids": [
+        "ERL-EXPORT-001",
+        "ERL-EXPORT-002"
+      ],
+      "capabilities": [
+        "source-chapters",
+        "source-content-safety"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-runtime-schema-conformance",
+      "priority": "P1",
+      "recommendation_level": 2,
+      "dependencies": [
+        "fix-cli-error-propagation"
+      ],
+      "audit_refs": [
+        "F06",
+        "A-VALIDATION",
+        "A-IDENTITY"
+      ],
+      "primary_test": "tests/erl-runtime-schema-conformance.zsh",
+      "requirement_ids": [
+        "ERL-SCHEMA-001",
+        "ERL-SCHEMA-002",
+        "ERL-SCHEMA-003",
+        "ERL-IDENTITY-001"
+      ],
+      "capabilities": [
+        "validation",
+        "vocabulary"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-source-policy-provenance",
+      "priority": "P1",
+      "recommendation_level": 1,
+      "dependencies": [
+        "fix-cli-error-propagation",
+        "fix-chapter-export-streaming",
+        "fix-runtime-schema-conformance",
+        "fix-cross-operation-mutation-serialization",
+        "fix-transaction-recovery-coverage"
+      ],
+      "audit_refs": [
+        "F05",
+        "A-SOURCE-RELOCATION"
+      ],
+      "primary_test": "tests/erl-source-policy-provenance.zsh",
+      "requirement_ids": [
+        "ERL-PROVENANCE-001",
+        "ERL-PROVENANCE-002",
+        "ERL-PROVENANCE-003"
+      ],
+      "capabilities": [
+        "source-chapters",
+        "vocabulary-extraction"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-transaction-recovery-coverage",
+      "priority": "P1",
+      "recommendation_level": 2,
+      "dependencies": [
+        "fix-work-state-path-safety",
+        "fix-cross-operation-mutation-serialization",
+        "fix-cli-error-propagation",
+        "fix-runtime-schema-conformance"
+      ],
+      "audit_refs": [
+        "F07",
+        "A-RECOVERY",
+        "A-JOURNAL-PATHS",
+        "A-MIGRATION"
+      ],
+      "primary_test": "tests/erl-transaction-recovery-coverage.zsh",
+      "requirement_ids": [
+        "ERL-RECOVERY-001",
+        "ERL-RECOVERY-002",
+        "ERL-RECOVERY-003",
+        "ERL-RECOVERY-004"
+      ],
+      "capabilities": [
+        "persistent-state"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-empty-chapter-ingestion",
+      "priority": "P2",
+      "recommendation_level": 1,
+      "dependencies": [
+        "fix-cross-operation-mutation-serialization",
+        "fix-cli-error-propagation",
+        "fix-transaction-recovery-coverage"
+      ],
+      "audit_refs": [
+        "F08",
+        "A-BATCH-RESUME"
+      ],
+      "primary_test": "tests/erl-empty-chapter-ingestion.zsh",
+      "requirement_ids": [
+        "ERL-BATCH-001",
+        "ERL-BATCH-002",
+        "ERL-BATCH-003"
+      ],
+      "capabilities": [
+        "reading-sequence",
+        "vocabulary-ingestion"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-source-format-normalization",
+      "priority": "P2",
+      "recommendation_level": 1,
+      "dependencies": [
+        "fix-cli-error-propagation",
+        "fix-chapter-export-streaming",
+        "fix-source-policy-provenance"
+      ],
+      "audit_refs": [
+        "F09",
+        "A-FORMATS"
+      ],
+      "primary_test": "tests/erl-source-format-normalization.zsh",
+      "requirement_ids": [
+        "ERL-FORMAT-001",
+        "ERL-FORMAT-002",
+        "ERL-FORMAT-003"
+      ],
+      "capabilities": [
+        "engineering-safety",
+        "source-chapters"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-complete-test-suite-gate",
+      "priority": "P2",
+      "recommendation_level": 1,
+      "dependencies": [],
+      "audit_refs": [
+        "F10",
+        "A-TEST-GATE"
+      ],
+      "primary_test": "tests/erl-complete-test-suite-gate.zsh",
+      "requirement_ids": [
+        "ERL-TEST-004",
+        "ERL-TEST-005",
+        "ERL-TEST-006"
+      ],
+      "capabilities": [
+        "engineering-safety"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-asciidoc-projection-safety",
+      "priority": "P2",
+      "recommendation_level": 2,
+      "dependencies": [
+        "fix-work-state-path-safety",
+        "fix-cross-operation-mutation-serialization",
+        "fix-transaction-recovery-coverage"
+      ],
+      "audit_refs": [
+        "A-ASCIIDOC",
+        "A-CARD-VALIDATION"
+      ],
+      "primary_test": "tests/erl-asciidoc-projection-safety.zsh",
+      "requirement_ids": [
+        "ERL-ASCIIDOC-001",
+        "ERL-ASCIIDOC-002",
+        "ERL-ASCIIDOC-003"
+      ],
+      "capabilities": [
+        "validation",
+        "vault-integration"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "add-reproducible-erl-bootstrap",
+      "priority": "P2",
+      "recommendation_level": 3,
+      "dependencies": [
+        "fix-work-state-path-safety",
+        "fix-cli-error-propagation",
+        "fix-runtime-schema-conformance",
+        "fix-complete-test-suite-gate"
+      ],
+      "audit_refs": [
+        "A-INSTALL",
+        "A-DOCTOR",
+        "A-ROOT-CONFIG"
+      ],
+      "primary_test": "tests/erl-reproducible-erl-bootstrap.zsh",
+      "requirement_ids": [
+        "ERL-BOOT-001",
+        "ERL-BOOT-002",
+        "ERL-BOOT-003"
+      ],
+      "capabilities": [
+        "agent-environment-setup"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "add-host-compatibility-certification",
+      "priority": "P2",
+      "recommendation_level": 3,
+      "dependencies": [
+        "fix-runtime-schema-conformance",
+        "fix-source-format-normalization",
+        "fix-asciidoc-projection-safety",
+        "add-reproducible-erl-bootstrap"
+      ],
+      "audit_refs": [
+        "A-HOST",
+        "A-PORTABILITY",
+        "A-UUID",
+        "A-LAYOUT"
+      ],
+      "primary_test": "tests/erl-host-compatibility-certification.zsh",
+      "requirement_ids": [
+        "ERL-HOST-001",
+        "ERL-HOST-002"
+      ],
+      "capabilities": [
+        "architecture-boundary",
+        "engineering-safety"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "add-durable-enrichment-provenance",
+      "priority": "P2",
+      "recommendation_level": 3,
+      "dependencies": [
+        "fix-runtime-schema-conformance",
+        "fix-transaction-recovery-coverage",
+        "fix-asciidoc-projection-safety"
+      ],
+      "audit_refs": [
+        "A-ENRICHMENT",
+        "A-CONFIDENCE"
+      ],
+      "primary_test": "tests/erl-durable-enrichment-provenance.zsh",
+      "requirement_ids": [
+        "ERL-ENRICH-001",
+        "ERL-ENRICH-002",
+        "ERL-ENRICH-003"
+      ],
+      "capabilities": [
+        "occurrence",
+        "vault-integration",
+        "vocabulary"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "add-lexi-extraction-evaluation",
+      "priority": "P2",
+      "recommendation_level": 3,
+      "dependencies": [
+        "fix-chapter-export-streaming",
+        "fix-source-policy-provenance",
+        "fix-runtime-schema-conformance",
+        "fix-empty-chapter-ingestion",
+        "fix-source-format-normalization",
+        "add-durable-enrichment-provenance"
+      ],
+      "audit_refs": [
+        "A-SEMANTIC-EVAL",
+        "A-KNOWN-WORDS",
+        "A-SEGMENTATION",
+        "A-MODEL-DATA-BOUNDARY"
+      ],
+      "primary_test": "tests/erl-lexi-extraction-evaluation.zsh",
+      "requirement_ids": [
+        "ERL-EVAL-001",
+        "ERL-EVAL-002",
+        "ERL-EVAL-003",
+        "ERL-EVAL-004",
+        "ERL-EVAL-005"
+      ],
+      "capabilities": [
+        "incremental-processing",
+        "quality-evaluation",
+        "source-content-safety",
+        "vocabulary"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "add-erl-backup-restore",
+      "priority": "P2",
+      "recommendation_level": 3,
+      "dependencies": [
+        "fix-work-state-path-safety",
+        "fix-cross-operation-mutation-serialization",
+        "fix-transaction-recovery-coverage",
+        "fix-source-policy-provenance",
+        "add-reproducible-erl-bootstrap"
+      ],
+      "audit_refs": [
+        "A-BACKUP",
+        "A-RETENTION",
+        "A-OPERATIONS",
+        "A-TRANSACTION-LIST"
+      ],
+      "primary_test": "tests/erl-erl-backup-restore.zsh",
+      "requirement_ids": [
+        "ERL-BACKUP-001",
+        "ERL-BACKUP-002",
+        "ERL-OPS-001",
+        "ERL-OPS-002"
+      ],
+      "capabilities": [
+        "backup-restore",
+        "operational-diagnostics",
+        "persistent-state"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "add-erl-performance-baseline",
+      "priority": "P2",
+      "recommendation_level": 3,
+      "dependencies": [
+        "fix-complete-test-suite-gate",
+        "fix-chapter-export-streaming",
+        "fix-cross-operation-mutation-serialization"
+      ],
+      "audit_refs": [
+        "A-PERFORMANCE",
+        "A-INDEX",
+        "A-SUPPORTED-SCALE"
+      ],
+      "primary_test": "tests/erl-erl-performance-baseline.zsh",
+      "requirement_ids": [
+        "ERL-PERF-001",
+        "ERL-PERF-002"
+      ],
+      "capabilities": [
+        "performance-baseline"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "fix-openspec-contract-authority",
+      "priority": "P2",
+      "recommendation_level": 3,
+      "dependencies": [
+        "fix-complete-test-suite-gate"
+      ],
+      "audit_refs": [
+        "A-GOVERNANCE",
+        "A-TRACEABILITY",
+        "A-CONFIG-DRIFT"
+      ],
+      "primary_test": "tests/erl-openspec-contract-authority.zsh",
+      "requirement_ids": [
+        "ERL-GOVERNANCE-001",
+        "ERL-GOVERNANCE-002"
+      ],
+      "capabilities": [
+        "openspec-governance"
+      ],
+      "status": "planned"
+    },
+    {
+      "name": "add-release-readiness-gates",
+      "priority": "P2",
+      "recommendation_level": 3,
+      "dependencies": [
+        "fix-work-state-path-safety",
+        "fix-mutation-lock-ownership",
+        "fix-cross-operation-mutation-serialization",
+        "fix-cli-error-propagation",
+        "fix-chapter-export-streaming",
+        "fix-runtime-schema-conformance",
+        "fix-source-policy-provenance",
+        "fix-transaction-recovery-coverage",
+        "fix-empty-chapter-ingestion",
+        "fix-source-format-normalization",
+        "fix-complete-test-suite-gate",
+        "fix-asciidoc-projection-safety",
+        "add-reproducible-erl-bootstrap",
+        "add-host-compatibility-certification",
+        "add-durable-enrichment-provenance",
+        "add-lexi-extraction-evaluation",
+        "add-erl-backup-restore",
+        "add-erl-performance-baseline",
+        "fix-openspec-contract-authority"
+      ],
+      "audit_refs": [
+        "A-RELEASE",
+        "A-CI",
+        "A-MATURITY-GATES"
+      ],
+      "primary_test": "tests/erl-release-readiness-gates.zsh",
+      "requirement_ids": [
+        "ERL-RELEASE-001",
+        "ERL-RELEASE-002",
+        "ERL-RELEASE-003"
+      ],
+      "capabilities": [
+        "release-readiness"
+      ],
+      "status": "planned"
+    }
+  ],
+  "deferred_architecture": [
+    {
+      "item": "БД/веб/rewrite языка",
+      "disposition": "not required by audit; no automatic architecture replacement"
+    },
+    {
+      "item": "derived index",
+      "disposition": "conditional follow-up only after measured bottleneck; owned by add-erl-performance-baseline"
+    }
+  ]
+}
