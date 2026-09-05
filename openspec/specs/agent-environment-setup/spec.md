@@ -147,3 +147,150 @@ Post-apply validation MUST проверять, что managed paths остают
 - **WHEN** пользователь запускает setup dry-run, apply или integrity check
 - **THEN** setup SHALL использовать self-contained embedded payload без reference directory
 - **AND** runtime operation SHALL NOT завершаться ошибкой только из-за отсутствия development reference skills
+
+### Requirement: ERL-AGENT-SETUP-009 — Every Lexi skill binds Vault to ERL_HOME
+
+После успешного разрешения absolute `ERL_HOME` каждый из семи Lexi runtime skills MUST передавать каждому ERL CLI invocation аргументы `--vault "${ERL_HOME}"`. Для Lexi resolved `ERL_HOME` MUST одновременно обозначать workspace repository root и canonical target Zettelkasten home, непосредственно содержащий `notes/` и `.state/erl/`.
+
+Skill MUST NOT подменять этот target пользовательским Zettelkasten checkout, home directory, parent directory либо nested `vault/`, включая случаи, когда такой каталог существует и содержит host implementation. Отдельный configured host root MUST использоваться только для разрешения canonical object constructors и MUST NOT изменять значение `--vault`.
+
+Materialized `TOOLS.md`, derived agent contract, все семь reference copies и embedded setup payload MUST сообщать одинаковое правило Vault binding. Development validation MUST завершаться ошибкой, если хотя бы один supported skill не содержит или не соблюдает этот контракт.
+
+#### Scenario: Book ingest uses the Lexi workspace as Vault
+
+- **GIVEN** Lexi разрешила `ERL_HOME` как `/workspace/english-reading-lab`
+- **WHEN** `erl-book-ingest` формирует dry-run или apply invocation
+- **THEN** invocation SHALL содержать `--vault "/workspace/english-reading-lab"`
+- **AND** planned work state SHALL находиться под `/workspace/english-reading-lab/.state/erl/works/`
+
+#### Scenario: Every supported skill has the same Vault binding
+
+- **GIVEN** materialized полный набор семи supported Lexi runtime skills
+- **WHEN** skill packaging validation проверяет agent contract и reference copies
+- **THEN** каждый skill SHALL требовать `--vault "${ERL_HOME}"` для каждого ERL command
+- **AND** validation SHALL завершаться ошибкой с именем skill при отсутствии этого правила
+
+#### Scenario: Host root differs from target Vault
+
+- **GIVEN** `ERL_HOME` указывает на Lexi workspace, а configured host root указывает на отдельный Zettelkasten host checkout
+- **WHEN** Lexi запускает command, создающий canonical Vault objects
+- **THEN** command SHALL получить `--vault "${ERL_HOME}"`
+- **AND** host root SHALL использоваться только для object-constructor resolution
+- **AND** documents и persistent ERL state SHALL создаваться внутри `ERL_HOME`, а не внутри host root
+
+#### Scenario: User Zettelkasten checkout exists
+
+- **GIVEN** на машине существует отдельный пользовательский Zettelkasten checkout
+- **WHEN** Lexi формирует любой ERL CLI invocation
+- **THEN** его наличие SHALL NOT изменять `--vault "${ERL_HOME}"`
+- **AND** skill SHALL NOT автоматически выбирать пользовательский checkout как target Vault
+
+### Requirement: ERL-AGENT-SETUP-012 — Setup materializes and repairs the Lexi root binding
+
+Lexi setup MUST принимать или детерминированно разрешать local `ERL_HOME` и `ERL_HOST_HOME`, показывать оба effective canonical paths в dry-run и записывать согласованный local runtime contract только после explicit apply.
+
+Для текущего deployment rendered configuration MUST задавать:
+
+```text
+ERL_HOME=/Users/steamtoad/pub/english-reading-lab
+ERL_HOST_HOME=/Users/steamtoad/dev/zettelkasten-cli
+```
+
+Setup check MUST проверять generated `TOOLS.md`, common skill contract, семь reference copies, embedded payload и effective target-home host contract. Ни один из них MUST NOT назначать `/Users/steamtoad/zettelkasten` как Lexi Vault или ERL host root.
+
+Если существующий `.state/erl/host-contract.json` содержит stale либо forbidden `host_root`, default dry-run/check MUST сообщить conflict без mutation. Replacement MUST требовать explicit apply/replacement consent, сохранить recoverable byte-exact backup, опубликовать новый contract атомарно и выполнить post-check. Failure MUST восстановить pre-apply bytes либо оставить явный recovery-required journal.
+
+#### Scenario: Clean setup renders the required paths
+
+- **GIVEN** setup выполняется для текущего Lexi deployment без local managed configuration
+- **WHEN** пользователь запускает dry-run, затем explicit apply
+- **THEN** dry-run SHALL показать оба exact effective roots
+- **AND** apply SHALL materialize target Vault binding `/Users/steamtoad/pub/english-reading-lab`
+- **AND** apply SHALL materialize host implementation binding `/Users/steamtoad/dev/zettelkasten-cli`
+
+#### Scenario: Existing host contract points to the user Vault
+
+- **GIVEN** `.state/erl/host-contract.json` содержит `host_root: /Users/steamtoad/zettelkasten`
+- **WHEN** setup выполняет default dry-run или check
+- **THEN** setup SHALL сообщить forbidden stale-host-root conflict
+- **AND** файл SHALL остаться byte-for-byte неизменным
+
+#### Scenario: User explicitly replaces the stale host contract
+
+- **GIVEN** пользователь просмотрел plan замены stale host contract
+- **WHEN** пользователь отдельно подтверждает replacement apply
+- **THEN** setup SHALL создать recoverable backup исходного contract
+- **AND** новый effective `host_root` SHALL быть `/Users/steamtoad/dev/zettelkasten-cli`
+- **AND** post-check SHALL подтвердить root separation и полный managed payload
+
+#### Scenario: Root-binding replacement fails
+
+- **GIVEN** replacement apply начал обновление local root binding
+- **WHEN** write, validation или publication завершается ошибкой
+- **THEN** setup SHALL восстановить exact pre-apply configuration либо опубликовать recovery-required journal
+- **AND** completed setup state SHALL NOT сообщать успешную новую конфигурацию
+
+#### Scenario: Reference or payload reintroduces the user Vault
+
+- **GIVEN** skill reference, `TOOLS.md` template либо embedded payload назначает `/Users/steamtoad/zettelkasten` target или host root
+- **WHEN** development synchronization validation запускается
+- **THEN** validation SHALL завершиться ошибкой с именем drifted artifact
+- **AND** completion и archive Change SHALL оставаться заблокированными
+
+### Requirement: ERL-AGENT-SETUP-010 — Mutation confirmation binds the exact Vault
+
+Перед каждым L2 или L3 `--apply` Lexi MUST показать пользователю план, содержащий absolute canonical path фактического target Vault в отдельном поле `Vault`, и MUST дождаться отдельного явного подтверждения уже показанного плана. Для Lexi это поле MUST иметь resolved значение `${ERL_HOME}`.
+
+После получения подтверждения и непосредственно перед mutation Lexi MUST повторно разрешить и проверить target Vault. Apply разрешён только если повторно полученный canonical path byte-for-byte совпадает с Vault подтверждённого плана, repository markers и target-home layout по-прежнему действительны, а применяемый plan относится к тому же Vault.
+
+Если path, identity, markers или plan изменились, Lexi MUST отменить прежнее подтверждение, MUST NOT запускать `--apply` и MUST сформировать новый dry-run plan, который требует нового явного подтверждения.
+
+#### Scenario: User confirms a Book ingest plan for the Lexi Vault
+
+- **GIVEN** Book ingest dry-run разрешил `${ERL_HOME}` как `/Users/steamtoad/pub/english-reading-lab`
+- **WHEN** Lexi запрашивает L2 confirmation
+- **THEN** показанный план SHALL содержать `Vault: /Users/steamtoad/pub/english-reading-lab`
+- **AND** Lexi SHALL NOT запускать `--apply` до отдельного явного подтверждения этого плана
+
+#### Scenario: Vault remains unchanged after confirmation
+
+- **GIVEN** пользователь явно подтвердил план с определённым absolute Vault path
+- **WHEN** Lexi готовится выполнить `--apply`
+- **THEN** Lexi SHALL повторно разрешить и проверить target Vault
+- **AND** invocation SHALL использовать тот же canonical path через `--vault "${ERL_HOME}"`
+
+#### Scenario: Vault changes after confirmation
+
+- **GIVEN** пользователь подтвердил план для одного Vault
+- **WHEN** pre-apply revalidation получает другой path, изменённую identity, недействительные markers либо plan другого Vault
+- **THEN** Lexi SHALL NOT выполнять mutation
+- **AND** прежнее подтверждение SHALL считаться недействительным
+- **AND** новый dry-run plan SHALL требовать нового явного подтверждения
+
+### Requirement: ERL-AGENT-SETUP-011 — Post-mutation validation and report use the confirmed Vault
+
+После успешного mutation Lexi MUST запустить canonical `${ERL_HOME}/.scripts/erl/erl-check.zsh` с exact `--vault "${ERL_HOME}"` и наиболее широким изменённым semantic scope. Для Book workflow с известным `WORK_ID` invocation MUST содержать `--work "${WORK_ID}" --json`.
+
+Lexi MUST сверить, что проверяемый Vault совпадает с Vault подтверждённого и применённого plan. Итоговый отчёт MUST явно содержать absolute фактический Vault, validation scope и результат `erl-check`. Lexi MUST NOT сообщать об успешной материализации, если post-check не был выполнен для того же Vault, завершился ошибкой либо обнаружил несоответствие scope.
+
+#### Scenario: Book ingest is checked in the same Vault
+
+- **GIVEN** Book ingest был применён к `${ERL_HOME}` и вернул `WORK_ID`
+- **WHEN** Lexi выполняет post-mutation validation
+- **THEN** invocation SHALL быть эквивалентен `${ERL_HOME}/.scripts/erl/erl-check.zsh --vault "${ERL_HOME}" --work "${WORK_ID}" --json`
+- **AND** Lexi SHALL проверить, что `${ERL_HOME}` совпадает с Vault подтверждённого plan
+
+#### Scenario: Final success report identifies the actual Vault
+
+- **GIVEN** mutation и post-check того же Vault успешно завершились
+- **WHEN** Lexi формирует итоговый отчёт
+- **THEN** отчёт SHALL содержать absolute фактический Vault
+- **AND** отчёт SHALL содержать проверенный `WORK_ID` или иной validation scope
+- **AND** отчёт SHALL содержать результат `erl-check`
+
+#### Scenario: Post-check targets another Vault
+
+- **GIVEN** mutation была применена к подтверждённому Vault
+- **WHEN** post-check настроен на другой Vault либо не может доказать identity проверяемого Vault
+- **THEN** Lexi SHALL NOT сообщать об успешном завершении
+- **AND** SHALL сообщить validation failure с обоими известными paths без автоматической повторной mutation

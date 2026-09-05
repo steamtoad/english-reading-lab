@@ -37,11 +37,11 @@ header() {
 "
 }
 
-header 'A Human Book' topic "$generation" $'\n:key-topic: Reading' > "$fixture/notes/$generation.adoc"
+header 'A Human Book' topic "$generation" $'\n:key-topic: A Human Book' > "$fixture/notes/$generation.adoc"
 print -r -- "== Chapters
 
 link:$chapter.adoc[Chapter 1]" >> "$fixture/notes/$generation.adoc"
-header 'Chapter 1' note "$chapter" $'\n:key-topic: Reading' > "$fixture/notes/$chapter.adoc"
+header 'Chapter 1' note "$chapter" $'\n:key-topic: A Human Book' > "$fixture/notes/$chapter.adoc"
 print -r -- '== Source
 
 Book:: A Human Book
@@ -55,7 +55,7 @@ print -r -- "
 
 link:$vocabulary.adoc[forlorn]
 link:$occurrence.adoc[forlorn occurrence]" >> "$fixture/notes/$chapter.adoc"
-header 'forlorn' memo "$vocabulary" $'\n:key-topic: Reading' > "$fixture/notes/$vocabulary.adoc"
+header 'forlorn' memo "$vocabulary" $'\n:key-topic: A Human Book' > "$fixture/notes/$vocabulary.adoc"
 print -r -- '== Lexical identity
 
 Lemma:: forlorn
@@ -78,7 +78,7 @@ link:$chapter.adoc[Chapter 1]
 == Memo Chain
 
 link:$occurrence.adoc[Следующее memo]" >> "$fixture/notes/$vocabulary.adoc"
-header 'forlorn occurrence' memo "$occurrence" $'\n:key-topic: Reading' > "$fixture/notes/$occurrence.adoc"
+header 'forlorn occurrence' memo "$occurrence" $'\n:key-topic: A Human Book' > "$fixture/notes/$occurrence.adoc"
 print -r -- "== Vocabulary
 
 link:$vocabulary.adoc[forlorn]

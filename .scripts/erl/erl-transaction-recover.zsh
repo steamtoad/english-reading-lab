@@ -144,6 +144,21 @@ if [[ "$operation" == erl-chapter-topic-binding-migrate ]]; then
   rm -rf -- "$tx_dir/backups"
   erl_emit ok OK true "$data" '[]' 0
 fi
+if [[ "$operation" == erl-book-title-key-topic-migrate ]]; then
+  data="$(jq -cn --arg txid "$txid" --arg operation "$operation" --arg phase "$phase" '{txid:$txid,operation:$operation,phase:$phase,recovery_action:"rollback"}')"
+  [[ "$mode" == apply ]] || erl_emit ok OK false "$data" '[]' 0
+  lock="$vault/.state/erl/locks/transaction-recover-$txid.lock"; erl_lock_acquire "$lock"
+  while IFS=$'\t' read -r uuid document_path pre_hash post_hash; do
+    backup="$tx_dir/backups/$uuid.adoc"
+    [[ -f "$backup" && "$(erl_sha256_file "$backup")" == "$pre_hash" ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Book-title migration backup is missing or changed: $uuid"
+    current_hash="$(erl_sha256_file "$document_path")"
+    [[ "$current_hash" == "$pre_hash" || ( -n "$post_hash" && "$current_hash" == "$post_hash" ) ]] || erl_fail 40 blocked RECOVERY_CONFLICT "Book-title migration document changed unexpectedly: $document_path"
+    cp -- "$backup" "$document_path" || erl_fail 60 error TRANSACTION_FAILED "Cannot restore Book-title migration document: $document_path"
+  done < <(jq -r '.documents[]|[.uuid,.path,.pre_hash,(.post_hash // "")]|@tsv' "$tx_file")
+  jq '.phase="rolled_back"' "$tx_file" | erl_atomic_write "$tx_file" || erl_fail 60 error TRANSACTION_FAILED "Cannot finalize Book-title migration rollback"
+  rm -rf -- "$tx_dir/backups"
+  erl_emit ok OK true "$data" '[]' 0
+fi
 [[ "$operation" == erl-vocabulary-ingest ]] || erl_fail 40 blocked RECOVERY_UNSUPPORTED "Automatic recovery is not implemented for transaction operation: $operation"
 generation="$(jq -r .generation_uuid "$tx_file")"; extraction="$(jq -r .extraction_id "$tx_file")"; candidate="$(jq -r .candidate_ordinal "$tx_file")"
 generation_file="$(jq -r '.generation_path // empty' "$tx_file")"; [[ -f "$generation_file" ]] || generation_file="$(erl_find_generation_file "$vault" "$generation" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Generation state is unavailable for recovery"

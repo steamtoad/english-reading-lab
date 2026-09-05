@@ -58,15 +58,21 @@ if [[ -n "$work_id" ]]; then
   work_dir="${existing_work_file:h}"
   [[ -z "$(jq -r '.active_generation_uuid // empty' "$existing_work_file")" ]] || erl_fail 30 blocked STATE_CONFLICT "Existing work has an active generation; reduce it before creating another"
   [[ -n "$title" ]] || title="$(jq -r '.title // empty' "$existing_work_file")"
-  [[ -n "$key_topic" ]] || erl_usage_error "--key-topic is required for a new Book generation"
 else
   [[ -n "$title" ]] || erl_usage_error "--title is required for a new work"
-  [[ -n "$key_topic" ]] || erl_usage_error "--key-topic is required for a new Book generation"
   [[ -n "$work_slug" ]] || work_slug="$(erl_slugify "$title")"
   [[ -n "$work_slug" ]] || erl_usage_error "Cannot derive a non-empty work slug"
   [[ ! -e "$vault/.state/erl/works/$work_slug/work.json" ]] || erl_fail 30 error STATE_CONFLICT "work-slug already exists: $work_slug"
   work_dir="$vault/.state/erl/works/$work_slug"
 fi
+
+[[ -n "$title" ]] || erl_fail 30 error STATE_CONFLICT "Logical work has no canonical title"
+if [[ -n "$key_topic" && "$key_topic" != "$title" ]]; then
+  erl_fail 10 error INVALID_INPUT \
+    "--key-topic must exactly equal the canonical book title" \
+    "$(jq -cn --arg expected "$title" --arg actual "$key_topic" '{expected_key_topic:$expected,actual_key_topic:$actual}')"
+fi
+key_topic="$title"
 
 existing_source=""
 reuse_source=0
@@ -133,7 +139,7 @@ created_docs+=("$vault/notes/$generation_fname")
   print -r -- "== Book"
   print -r -- ""
   print -r -- "Title:: $(erl_json_escape_asciidoc "$title")"
-  print -r -- "Reading topic:: $(erl_json_escape_asciidoc "$key_topic")"
+  print -r -- "Book key:: $(erl_json_escape_asciidoc "$key_topic")"
   print -r -- ""
   print -r -- "This card is the reading hub for _$(erl_json_escape_asciidoc "$title")_."
 } >> "$vault/notes/$generation_fname"

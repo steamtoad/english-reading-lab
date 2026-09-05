@@ -102,18 +102,25 @@ Ingestion одного `EXTRACTION_ID` MUST быть идемпотентна о
 - **THEN** ERL SHALL соблюдать idempotency относительно ingestion receipt
 - **AND** SHALL NOT молча создавать второй набор документов
 
-### Requirement: ERL-ING-010 — Created Vocabulary and Occurrence inherit Chapter key-topic
+### Requirement: ERL-ING-010 — Created Vocabulary and Occurrence inherit Chapter book-title key-topic
 
-Каждый Vocabulary или Occurrence Memo, созданный для lexical encounter текущей Chapter, MUST содержать host-defined header attribute `:key-topic:` с точным значением `:key-topic:` этой Chapter Note.
+Каждый Vocabulary или Occurrence Memo, созданный для lexical encounter текущей Chapter, MUST содержать `:key-topic:` с точным значением canonical book title этой Chapter Note.
 
-Vocabulary Memo MUST наследовать key при первом приобретении lexical identity. При последующей встрече существующей global Vocabulary ERL MUST создать новый Occurrence Memo с key текущей Chapter и MUST NOT менять acquisition attachment исходной Vocabulary.
+Vocabulary Memo MUST наследовать key при первом приобретении lexical identity. При последующей встрече существующей global Vocabulary ERL MUST создать новый Occurrence Memo с key текущей Chapter и MUST NOT менять key исходной Vocabulary.
 
 #### Scenario: New Vocabulary is acquired in a Chapter
 
-- **GIVEN** Candidate не соответствует существующей active Vocabulary
-- **WHEN** ERL создаёт Vocabulary Memo для Chapter
-- **THEN** Memo `:key-topic:` SHALL точно совпадать с Chapter Note `:key-topic:`
+- **GIVEN** Chapter книги `Friday` имеет `:key-topic: Friday`
+- **WHEN** ERL создаёт новую Vocabulary Memo
+- **THEN** Memo `:key-topic:` SHALL быть `Friday`
 - **AND** Vocabulary SHALL считаться прикреплённой к Chapter первого приобретения
+
+#### Scenario: Existing Vocabulary occurs in another book
+
+- **GIVEN** active Vocabulary была приобретена в другой книге
+- **WHEN** Candidate встречается в Chapter книги `Friday`
+- **THEN** новый Occurrence `:key-topic:` SHALL быть `Friday`
+- **AND** `:key-topic:` существующей Vocabulary SHALL NOT изменяться
 
 #### Scenario: Existing Vocabulary occurs in another Chapter
 

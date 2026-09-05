@@ -69,7 +69,8 @@ done < <(find "$erl_dir" "$tests_dir" -type f -exec awk 'FNR==1 && $0 ~ /^#!(\/b
 for command_name in \
   erl-book-ingest erl-chapter-export erl-extraction-stage erl-vocabulary-ingest \
   erl-chapter-vocabulary-ingest erl-book-reduce erl-classic-reduce-reconcile \
-  erl-home-layout-migrate erl-transaction-recover erl-state-migrate erl-work-rename erl-check; do
+  erl-home-layout-migrate erl-transaction-recover erl-state-migrate erl-work-rename \
+  erl-book-title-key-topic-migrate erl-check; do
   [[ -x "${erl_dir}/${command_name}.zsh" ]] || fail "canonical executable is missing: ${erl_dir}/${command_name}.zsh"
   [[ ! -e "${erl_dir}/${command_name}" ]] || fail "extensionless executable is forbidden: ${erl_dir}/${command_name}"
 done
@@ -113,6 +114,10 @@ for skill_name in "${skill_names[@]}"; do
     fail "$skill_name: common contract does not bind Lexi Vault to ERL_HOME"
   rg -qF 'Pass exact `--vault "${ERL_HOME}"` to every ERL CLI invocation' "$skill_file" || \
     fail "$skill_name: runtime workflow does not pass exact --vault ERL_HOME"
+  rg -qF 'Every L2/L3 pending plan includes a separate `Vault: <absolute-canonical-path>` field' "$reference_file" || \
+    fail "$skill_name: common contract does not bind L2/L3 confirmation to the canonical Vault"
+  rg -qF 'The final mutation report includes `Vault: <absolute-canonical-path>`' "$reference_file" || \
+    fail "$skill_name: common contract does not require same-Vault validation reporting"
   rg -qF '`ERL_HOST_HOME` is a different absolute root used only for canonical object constructors.' "$reference_file" || \
     fail "$skill_name: common contract does not separate ERL_HOST_HOME from the target Vault"
   rg -qF '`/Users/steamtoad/zettelkasten` is a forbidden user-data root' "$reference_file" || \
@@ -135,11 +140,15 @@ for skill_name in "${skill_names[@]}"; do
   case "$skill_name" in
     erl-book-ingest|erl-chapter-vocabulary-ingest|erl-classic-reduce-reconcile)
       rg -q 'explicit L2 confirmation' "$skill_file" || fail "$skill_name: L2 confirmation gate is missing"
+      rg -qF 'Vault: <absolute-canonical-ERL_HOME>' "$skill_file" || fail "$skill_name: L2 plan omits the canonical Vault field"
+      rg -q 'Immediately before apply.*canonicalize `ERL_HOME`' "$skill_file" || fail "$skill_name: L2 pre-apply Vault revalidation is missing"
       ;;
     erl-book-reduce)
       rg -q 'fresh dry-run' "$skill_file" || fail "$skill_name: L3 fresh-plan gate is missing"
       rg -q 'separate explicit consent' "$skill_file" || fail "$skill_name: L3 dependency consent gate is missing"
       rg -q -- '--plan-fingerprint HASH' "$skill_file" || fail "$skill_name: L3 exact-plan fingerprint gate is missing"
+      rg -qF 'Vault: <absolute-canonical-ERL_HOME>' "$skill_file" || fail "$skill_name: L3 plan omits the canonical Vault field"
+      rg -q 'Immediately before apply.*canonicalize `ERL_HOME`' "$skill_file" || fail "$skill_name: L3 pre-apply Vault revalidation is missing"
       ;;
     erl-check)
       rg -q 'strictly read-only' "$skill_file" || fail "$skill_name: L0 read-only guarantee is missing"
@@ -147,6 +156,15 @@ for skill_name in "${skill_names[@]}"; do
       ;;
     erl-vocabulary-ingest|erl-chapter-vocabulary-extract)
       rg -q 'explicit' "$skill_file" || fail "$skill_name: L1 explicit-request boundary is missing"
+      ;;
+  esac
+
+  case "$skill_name" in
+    erl-book-ingest|erl-chapter-vocabulary-extract|erl-vocabulary-ingest|erl-chapter-vocabulary-ingest|erl-book-reduce|erl-classic-reduce-reconcile)
+      rg -qF 'Vault: <absolute-canonical-path>' "$skill_file" || fail "$skill_name: final mutation report omits the actual Vault"
+      rg -q 'validation scope' "$skill_file" || fail "$skill_name: final mutation report omits validation scope"
+      rg -qF 'the `erl-check` result' "$skill_file" || fail "$skill_name: final mutation report omits checker result"
+      rg -q 'Missing, failed, or cross-Vault validation is failure' "$skill_file" || fail "$skill_name: success is not blocked after invalid post-check"
       ;;
   esac
 

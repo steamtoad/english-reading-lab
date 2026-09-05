@@ -28,7 +28,7 @@ policy_base='{"schema_version":1,"threshold":["B2","C1","C2"],"lexical_types":["
 policy_identity="$(print -r -- "$policy_base" | jq -cS . | shasum -a 256 | awk '{print "sha256:" $1}')"
 print -r -- "$policy_base" | jq --arg identity "$policy_identity" '.+{identity:$identity}' > "$fixture/policy.json"
 
-book_command=("$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --title Example --key-topic Reading --policy-file "$fixture/policy.json" --dry-run --json)
+book_command=("$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --title Example --key-topic Example --policy-file "$fixture/policy.json" --dry-run --json)
 
 # Positive role resolution uses the target only for documents/state and the
 # separate host only for canonical constructors.
@@ -66,7 +66,7 @@ expect_error 30 FORBIDDEN_ROOT "$fixture/forbidden-target.json" \
 after="$(find "$vault" -type f -exec shasum -a 256 {} + | sort)"
 [[ "$before" == "$after" ]] || { print -ru2 -- 'FAIL: forbidden target failure mutated Vault'; exit 1; }
 
-user_command=("$erl/erl-book-ingest.zsh" --vault /Users/steamtoad/zettelkasten --source "$fixture/book.txt" --title Forbidden --key-topic Reading --policy-file "$fixture/policy.json" --dry-run --json)
+user_command=("$erl/erl-book-ingest.zsh" --vault /Users/steamtoad/zettelkasten --source "$fixture/book.txt" --title Forbidden --key-topic Forbidden --policy-file "$fixture/policy.json" --dry-run --json)
 expect_error 30 FORBIDDEN_ROOT "$fixture/current-user-vault.json" env ERL_HOST_HOME="$host" "${user_command[@]}"
 
 jq -n --arg host "$host" '{version:1,host_root:$host,forbidden_roots:[$host]}' > "$vault/.state/erl/host-contract.json"
@@ -80,7 +80,7 @@ expect_error 10 INVALID_INPUT "$fixture/relative.json" env ERL_HOST_HOME=relativ
 equal_vault="$fixture/equal"
 mkdir -p -- "$equal_vault/notes"
 cp -R -- "$repo/fixtures/host-contract/.scripts" "$equal_vault/.scripts"
-equal_command=("$erl/erl-book-ingest.zsh" --vault "$equal_vault" --source "$fixture/book.txt" --title Equal --key-topic Reading --policy-file "$fixture/policy.json" --dry-run --json)
+equal_command=("$erl/erl-book-ingest.zsh" --vault "$equal_vault" --source "$fixture/book.txt" --title Equal --key-topic Equal --policy-file "$fixture/policy.json" --dry-run --json)
 expect_error 30 ROOT_ROLE_CONFLICT "$fixture/equal.json" env ERL_HOST_HOME="$equal_vault" "${equal_command[@]}"
 
 missing_host="$fixture/missing-host"

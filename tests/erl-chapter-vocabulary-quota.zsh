@@ -9,7 +9,13 @@
 set -euo pipefail
 
 repo="${0:A:h:h}"
-spec="$repo/openspec/changes/remove-chapter-vocabulary-quota/specs/vocabulary-extraction/spec.md"
+change="$repo/openspec/changes/remove-chapter-vocabulary-quota"
+if [[ ! -d "$change" ]]; then
+  archived_changes=("$repo"/openspec/changes/archive/<->-<->-<->-remove-chapter-vocabulary-quota(N))
+  (( ${#archived_changes} )) || { print -ru2 -- 'FAIL: quota Change history is missing'; exit 1; }
+  change="${archived_changes[-1]}"
+fi
+spec="$change/specs/vocabulary-extraction/spec.md"
 legacy="$repo/.scripts/erl/docs/requirements.md"
 
 rg -q 'ERL-CAND-010 — Chapter extraction has no Candidate quota' "$spec"

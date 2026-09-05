@@ -235,11 +235,9 @@ ERL document MUST NOT содержать plugin-specific AsciiDoc attributes `:e
 - **WHEN** ERL проверяет attributes ERL document
 - **THEN** document SHALL NOT содержать plugin-specific attributes `:erl-*`
 
-### Requirement: ERL-CHECK-021 — Book Topic follows host Topic presentation contract
+### Requirement: ERL-CHECK-021 — Book Topic follows host Topic presentation and title-key contract
 
-Каждый retained или active Book generation UUID MUST разрешаться в существующую canonical Topic, чья видимая presentation идентифицирует конкретную книгу из logical work state.
-
-Book Topic MUST содержать host-compatible `:key-topic:`, не используемый как `WORK_ID`, и MUST удовлетворять canonical host Topic presentation contract. Topic, представленная только thematic key вместо title книги, MUST диагностироваться как неверная Book Topic presentation.
+`erl-check` MUST read-only проверять, что Book Topic удовлетворяет canonical host Topic presentation contract и что её `:key-topic:` точно совпадает с canonical visible title logical work.
 
 #### Scenario: Book Topic presentation is validated
 
@@ -258,6 +256,14 @@ Book Topic MUST содержать host-compatible `:key-topic:`, не испо�
 - **THEN** `erl-check` SHALL вернуть validation error для этой generation
 - **AND** diagnostic SHALL различать missing Topic, wrong canonical type и wrong Book presentation
 - **AND** `erl-check` SHALL NOT создавать или переписывать Topic автоматически
+
+#### Scenario: Book Topic key differs from title
+
+- **GIVEN** Book Topic имеет title `Friday` и `:key-topic: English Reading`
+- **WHEN** выполняется validation
+- **THEN** checker SHALL вернуть deterministic validation error
+- **AND** error SHALL содержать Book Topic UUID, expected `Friday` и actual `English Reading`
+- **AND** checker SHALL NOT изменять документ или state
 
 ### Requirement: ERL-CHECK-022 — ERL identifiers use valid lowercase UUID format
 
@@ -400,24 +406,30 @@ Validation MUST проверять UTF-8 и AsciiDoc validity, непустые 
 - **AND** SHALL указать generation UUID, Chapter UUID и затронутые Memo UUID
 - **AND** SHALL NOT изменять Vault documents или persistent state
 
-### Requirement: ERL-CHECK-027 — Chapter–Book Topic binding is complete and reciprocal
+### Requirement: ERL-CHECK-027 — Chapter–Book Topic binding includes canonical book-title key
 
 `erl-check` MUST read-only проверять для каждой Chapter Note active generation:
 
-- точное совпадение Chapter `:key-topic:` и Book Topic `:key-topic:`;
+- exact equality canonical Book title, Book Topic `:key-topic:` и Chapter `:key-topic:`;
 - ровно одну canonical Chapter→active Book Topic link;
 - ровно одну reciprocal Book Topic→Chapter link;
-- отсутствие duplicate links;
-- source-order Topic→Chapter links;
-- отсутствие второй active Book Topic attachment Chapter Note.
+- отсутствие duplicate links и второй active attachment;
+- source-order Topic→Chapter links.
 
 #### Scenario: Complete Chapter–Topic binding is validated
 
-- **GIVEN** Chapter зарегистрирована для active Book generation
-- **WHEN** ERL выполняет validation
-- **THEN** Chapter `:key-topic:` SHALL совпадать с Book Topic `:key-topic:`
-- **AND** Chapter→Topic и Topic→Chapter links SHALL существовать и быть взаимными
-- **AND** каждая сторона SHALL содержать ровно одну applicable link
+- **GIVEN** active Book Topic title/key равны `Friday`
+- **WHEN** ERL проверяет зарегистрированную Chapter
+- **THEN** Chapter `:key-topic:` SHALL быть `Friday`
+- **AND** reciprocal Chapter/Topic links SHALL быть полными и уникальными
+
+#### Scenario: Chapter retains the old umbrella key
+
+- **GIVEN** Chapter относится к active Book `Friday`
+- **WHEN** Chapter `:key-topic:` равно `English Reading`
+- **THEN** checker SHALL вернуть validation error
+- **AND** error SHALL указать Book Topic UUID, Chapter UUID, expected и actual key
+- **AND** checker SHALL NOT изменять Vault documents или persistent state
 
 #### Scenario: Chapter–Topic binding is incomplete or conflicting
 

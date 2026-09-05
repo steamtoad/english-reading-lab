@@ -50,6 +50,10 @@ forbidden user Vault=/Users/steamtoad/zettelkasten
 Пользовательский Vault не является ни Lexi target, ни ERL host implementation.
 Каждый из семи Lexi runtime skills передаёт каждому ERL CLI invocation exact
 `--vault "${ERL_HOME}"`; это правило применяется также к dry-run и post-check.
+Каждый L2/L3 plan отдельно показывает canonical `Vault`, а перед `--apply` Lexi
+повторно проверяет тот же path, markers и plan. После mutation итог считается
+успешным только после `erl-check` того же Vault и widest changed scope; отчёт
+обязательно содержит Vault, scope и checker result.
 
 ---
 
@@ -660,6 +664,8 @@ canonical `.scripts/erl/<command>.zsh`, не extensionless wrapper.
 [ ] все ERL shell scripts/libraries имеют расширение .zsh; extensionless copies отсутствуют
 [ ] каждая ERL OpenSpec delta содержит task на derived primary regression test tests/erl-<behavior-slug>.zsh
 [ ] primary regression test текущей delta существует и успешно запущен до completion/archive
+[ ] L2/L3 confirmation привязано к отдельно показанному canonical Vault и повторно проверенному plan
+[ ] post-mutation report содержит тот же Vault, widest validation scope и результат erl-check
 [ ] archive preflight подтвердил completed tasks, primary test и strict change validation
 [ ] archive postcondition подтвердил полный archive, delta synchronization и canonical validation
 ```

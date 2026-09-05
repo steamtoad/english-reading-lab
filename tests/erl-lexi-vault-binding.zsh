@@ -124,7 +124,7 @@ notes_before="$(find "$workspace/notes" -type f | wc -l | tr -d ' ')"
 works_before="$(find "$workspace/.state/erl/works" -type f 2>/dev/null | wc -l | tr -d ' ')"
 ERL_HOME="$workspace" ERL_HOST_HOME="$host" "$erl/erl-book-ingest.zsh" \
   --vault "$workspace" --source "$fixture/book.txt" --title Fixture \
-  --key-topic Reading --policy-file "$fixture/policy.json" --dry-run --json > "$fixture/book-dry.json"
+  --key-topic Fixture --policy-file "$fixture/policy.json" --dry-run --json > "$fixture/book-dry.json"
 jq -e --arg prefix "$workspace/.state/erl/works/" \
   '.status=="ok" and .changed==false and .data.chapter_count==1 and (.data.work_state_path|startswith($prefix))' \
   "$fixture/book-dry.json" >/dev/null

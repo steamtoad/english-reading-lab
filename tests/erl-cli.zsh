@@ -47,12 +47,12 @@ if [[ "$missing_host_rc" != 50 ]] || ! jq -e '.status=="error" and .code=="HOST_
 fi
 
 before="$(find "$vault" -type f | wc -l | tr -d ' ')"
-"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --title 'Example Book' --key-topic 'English Reading' --policy-file "$fixture/policy.json" --dry-run --json > "$fixture/book-dry.json"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --title 'Example Book' --policy-file "$fixture/policy.json" --dry-run --json > "$fixture/book-dry.json"
 after="$(find "$vault" -type f | wc -l | tr -d ' ')"
 [[ "$before" == "$after" ]] || { print -ru2 -- 'FAIL: book dry-run mutated Vault'; exit 1; }
 assert_envelope "$fixture/book-dry.json"
 
-"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --title 'Example Book' --key-topic 'English Reading' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book.json"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --title 'Example Book' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book.json"
 assert_envelope "$fixture/book.json"
 generation="$(jq -r .data.generation_uuid "$fixture/book.json")"
 work_id="$(jq -r .data.work_id "$fixture/book.json")"
@@ -177,7 +177,7 @@ jq -e '.code=="ALREADY_INGESTED" and .changed==false and .data.sequence_ordinal=
 # A second Book acquiring the same lexical identity creates an Occurrence and
 # forces a cross-work fixed-point closure when the owning generation is reduced.
 print -r -- 'The forlorn ranger returned.' > "$fixture/book-two.txt"
-"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book-two.txt" --title 'Second Book' --key-topic 'Second Reading' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book-two.json"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book-two.txt" --title 'Second Book' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book-two.json"
 generation_two="$(jq -r .data.generation_uuid "$fixture/book-two.json")"
 source_two=("$vault/.state/erl/works/second-book/sources"/*.json)
 chapter_two="$(jq -r '.chapters[0].chapter_uuid' "$source_two[1]")"
@@ -250,9 +250,9 @@ grep -q '^:deprecated:$' "$vault/notes/$chapter_two.adoc" && { print -ru2 -- 'FA
 # A closed work may create a new semantic generation for the same source while
 # reusing SOURCE_ID and durable Chapter UUIDs.
 chapter_before="$(jq -r '.chapters[0].chapter_uuid' "$source_state[1]")"
-"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work_id" --key-topic 'English Reading v2' --policy-file "$fixture/policy.json" --dry-run --json > "$fixture/book-regeneration-dry.json"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work_id" --policy-file "$fixture/policy.json" --dry-run --json > "$fixture/book-regeneration-dry.json"
 jq -e --arg source_id "$source_id" '.changed==false and .data.reuses_source==true and .data.source_id==$source_id and .data.will_generate_source_id==false' "$fixture/book-regeneration-dry.json" >/dev/null
-"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work_id" --key-topic 'English Reading v2' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book-regeneration.json"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work_id" --policy-file "$fixture/policy.json" --apply --json > "$fixture/book-regeneration.json"
 generation_regenerated="$(jq -r .data.generation_uuid "$fixture/book-regeneration.json")"
 jq -e --arg source_id "$source_id" '.changed==true and .data.reused_source==true and .data.source_id==$source_id and .data.created.notes==0' "$fixture/book-regeneration.json" >/dev/null
 [[ "$(jq -r '.chapters[0].chapter_uuid' "$source_state[1]")" == "$chapter_before" ]] || { print -ru2 -- 'FAIL: same-source generation changed durable Chapter UUID'; exit 1; }
@@ -271,7 +271,7 @@ jq -e --arg work_id "$work_id" '.work_id==$work_id and .work_slug=="example-book
 # Classic reconciliation is tested separately from ERL Book Reduce, including
 # the rule that successor adoption is never implicit.
 print -r -- 'A quiet chapter.' > "$fixture/book-three.txt"
-"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book-three.txt" --title 'Classic Book' --key-topic 'Classic Reading' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book-three.json"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book-three.txt" --title 'Classic Book' --policy-file "$fixture/policy.json" --apply --json > "$fixture/book-three.json"
 generation_three="$(jq -r .data.generation_uuid "$fixture/book-three.json")"
 work_three="$(jq -r .data.work_id "$fixture/book-three.json")"
 successor="$(uuidgen | tr '[:upper:]' '[:lower:]')"

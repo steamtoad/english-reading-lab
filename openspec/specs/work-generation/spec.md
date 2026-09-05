@@ -163,43 +163,49 @@ ERL MUST допускать использование разных CEFR thresho
 - **THEN** новая generation MAY использовать отличающиеся CEFR, extraction, lexical, card, ordering или ingestion rules
 - **AND** предыдущая generation SHALL NOT переписываться молча новой policy
 
-### Requirement: ERL-BOOK-012 — Book Topic uses explicit thematic key-topic
+### Requirement: ERL-BOOK-012 — Book Topic key-topic equals canonical book title
 
-При создании Book Topic пользователь или ERL workflow MUST явно задать непустой host-compatible thematic key для `:key-topic:`.
+При создании Book Topic ERL MUST установить host-compatible `:key-topic:` в точное значение canonical title logical work.
 
-Этот key MUST NOT быть `WORK_ID`, generation identity или другим ERL foreign key и MUST NOT использоваться для восстановления ERL relationships.
+Этот key MUST NOT быть `WORK_ID`, generation identity или иным ERL foreign key. ERL relationships MUST восстанавливаться по persistent state и canonical links, а не по совпадению title key.
 
 #### Scenario: Book Topic is created
 
+- **GIVEN** canonical title logical work равен `Friday`
 - **WHEN** ERL создаёт canonical Book Topic
-- **THEN** Topic SHALL получить непустой host-compatible `:key-topic:`
-- **AND** значение SHALL иметь thematic host semantics
+- **THEN** Topic SHALL получить `:key-topic: Friday`
+- **AND** значение SHALL точно совпадать с visible canonical title книги
 - **AND** значение SHALL NOT быть `WORK_ID` или generation identity
-- **AND** ERL SHALL NOT использовать его для восстановления persistent ERL relationships
+
+#### Scenario: Explicit key-topic conflicts with title
+
+- **GIVEN** canonical title равен `Friday`
+- **WHEN** caller передаёт explicit `--key-topic "English Reading"`
+- **THEN** ingest SHALL завершиться deterministic error до первой mutation
+- **AND** error SHALL содержать expected `Friday` и actual `English Reading`
+- **AND** Book Topic, Chapters и persistent work state SHALL NOT создаваться или изменяться
 
 ### Requirement: ERL-BOOK-013 — Book Topic follows canonical presentation contract
 
-Book Topic MUST создаваться canonical Topic constructor и MUST соблюдать host Topic presentation contract для title, `:description:` и `:doclink:`.
+Book Topic MUST создаваться canonical Topic constructor и MUST соблюдать host Topic presentation contract для title, `:description:`, `:doclink:` и `:key-topic:`.
 
-Видимый title Book Topic MUST идентифицировать книгу по canonical title logical work. Тематический `:key-topic:` MUST оставаться отдельной host-compatible классификацией и MUST NOT подменять title книги.
-
-Logical-work metadata и название произведения MUST храниться в persistent work state и MAY дополнительно присутствовать в body, но MUST NOT подменять semantics `:key-topic:`.
+Visible title Book Topic и `:key-topic:` MUST точно идентифицировать книгу по одному canonical title logical work. Logical-work identity MUST храниться в persistent work state и MUST NOT кодироваться в `:key-topic:`.
 
 #### Scenario: Book Topic is constructed
 
-- **WHEN** ERL создаёт Book Topic
+- **WHEN** ERL создаёт Book Topic для canonical title `Friday`
 - **THEN** SHALL использоваться canonical Topic constructor
-- **AND** title SHALL идентифицировать книгу по canonical title logical work
+- **AND** visible title SHALL быть `Friday`
+- **AND** `:key-topic:` SHALL быть `Friday`
 - **AND** `:description:` и `:doclink:` SHALL соответствовать host Topic presentation contract
-- **AND** `:key-topic:` SHALL сохранять отдельную thematic host semantics
-- **AND** logical-work metadata SHALL NOT кодироваться путём переопределения `:key-topic:` semantics
+- **AND** ERL foreign keys SHALL NOT кодироваться в `:key-topic:`
 
 #### Scenario: Thematic key differs from book title
 
-- **GIVEN** canonical title книги и thematic `:key-topic:` имеют разные значения
-- **WHEN** ERL materializes Book Topic
-- **THEN** видимый title SHALL быть основан на canonical title книги
-- **AND** `:key-topic:` SHALL содержать thematic key
+- **GIVEN** canonical title книги и explicit `:key-topic:` имеют разные значения
+- **WHEN** caller пытается materialize Book Topic
+- **THEN** ERL SHALL отклонить conflict до mutation
+- **AND** Book Topic SHALL NOT создаваться с отдельным thematic key
 
 ### Requirement: ERL-BOOK-014 — Book Topic and generation state are committed atomically
 

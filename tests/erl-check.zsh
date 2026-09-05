@@ -41,7 +41,7 @@ write_topic() {
 :description: Example Book
 :doclink: link:$generation.adoc[Example Book]
 :docfilename: $generation.adoc
-:key-topic: English Reading
+:key-topic: Example Book
 
 == Book
 
@@ -65,7 +65,7 @@ write_note() {
 :description: Chapter 1
 :doclink: link:$chapter.adoc[Chapter 1]
 :docfilename: $chapter.adoc
-:key-topic: English Reading
+:key-topic: Example Book
 
 == Book
 
@@ -93,7 +93,7 @@ write_vocabulary() {
 :description: forlorn
 :doclink: link:$vocabulary.adoc[forlorn]
 :docfilename: $vocabulary.adoc${deprecated}
-:key-topic: English Reading
+:key-topic: Example Book
 
 == Lexical identity
 
@@ -125,7 +125,7 @@ write_occurrence() {
 :description: forlorn occurrence
 :doclink: link:$occurrence.adoc[forlorn occurrence]
 :docfilename: $occurrence.adoc
-:key-topic: English Reading
+:key-topic: Example Book
 
 == Vocabulary
 
@@ -211,7 +211,7 @@ assert_json 0 '.status=="ok" and .code=="OK" and .changed==false and .data.count
 
 # Chapter Memo attachment and chain diagnostics are specific and read-only.
 cp "$fixture/notes/$occurrence.adoc" "$fixture/occurrence-chain.saved"
-sed -i.bak 's/:key-topic: English Reading/:key-topic: Wrong/' "$fixture/notes/$occurrence.adoc"; rm -f -- "$fixture/notes/$occurrence.adoc.bak"
+sed -i.bak 's/:key-topic: Example Book/:key-topic: Wrong/' "$fixture/notes/$occurrence.adoc"; rm -f -- "$fixture/notes/$occurrence.adoc.bak"
 assert_json 10 '.status=="error" and any(.diagnostics[]; .code=="ERL-CHECK-028" and .reason=="mismatched_key")'
 cp "$fixture/occurrence-chain.saved" "$fixture/notes/$occurrence.adoc"
 sed -i.bak "/link:$chapter.adoc\[Chapter 1\]/d" "$fixture/notes/$occurrence.adoc"; rm -f -- "$fixture/notes/$occurrence.adoc.bak"

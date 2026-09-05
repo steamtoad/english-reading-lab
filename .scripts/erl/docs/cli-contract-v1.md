@@ -342,7 +342,6 @@ durable Chapter Notes
 erl-book-ingest.zsh \
   --source books/book.epub \
   --title "Example Book" \
-  --key-topic "English Reading" \
   --policy-file policies/c1-c2-v1.json \
   --apply \
   --json
@@ -364,7 +363,7 @@ erl-book-ingest.zsh \
 ```text
 --source FILE             required
 --title TEXT              required для нового WORK_ID
---key-topic TEXT          required при создании Book Topic
+--key-topic TEXT          optional compatibility input; must exactly equal title
 --policy-file FILE        required при создании generation
 --work-id UUID            optional
 --work-slug SLUG          optional human locator
@@ -379,8 +378,9 @@ Vault UUID генерирует только canonical host constructor.
 
 Book Topic materialization соблюдает `ERL-BOOK-006`, `ERL-BOOK-007`,
 `ERL-BOOK-013` и `ERL-BOOK-014`: canonical logical-work title определяет
-visible Topic title, `:description:` и `:doclink:`, а `--key-topic` остаётся
-отдельной thematic classification. Success публикуется только после
+visible Topic title, `:description:`, `:doclink:` и `:key-topic:`. При omitted
+`--key-topic` key выводится из title; explicit mismatch возвращает `INVALID_INPUT`
+с expected/actual до первой mutation. Success публикуется только после
 post-construction validation и финального read-only `erl-check` (`ERL-CHECK-021`);
 ошибка откатывает provisional Topic и state.
 
@@ -1156,6 +1156,20 @@ deterministic plan. Apply синхронизирует Chapter keys, Chapter `Bo
 `Chapters`, создавая journal с exact backups до mutation. Conflicting
 user-owned sections дают `STATE_CONFLICT`; interrupted apply откатывается
 через `erl-transaction-recover.zsh` с hash conflict detection.
+
+## `erl-book-title-key-topic-migrate.zsh`
+
+Explicit migration active Book projection к exact canonical logical-work title:
+
+```bash
+erl-book-title-key-topic-migrate.zsh --vault "$VAULT" --work "$WORK_ID" --dry-run --json
+erl-book-title-key-topic-migrate.zsh --vault "$VAULT" --work "$WORK_ID" --apply --json
+```
+
+Migration охватывает active Book Topic, все Chapters её source и Memo
+активной generation; deprecated generations не изменяются. Dry-run mutation-free.
+Apply использует exact backups, hashes, transaction journal, post-validation
+и recovery rollback. Conflicting ownership/links/key values дают `STATE_CONFLICT`.
 
 ## `erl-card-content-repair.zsh`
 

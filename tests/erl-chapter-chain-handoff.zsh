@@ -32,7 +32,7 @@ write_doc() {
 
 $body" > "$fixture/notes/$uuid.adoc"
 }
-write_doc "$generation" 'Handoff Book' topic $'== Book\n\nTitle:: Handoff Book\nReading topic:: Reading' $'\n:key-topic: Reading'
+write_doc "$generation" 'Handoff Book' topic $'== Book\n\nTitle:: Handoff Book\nReading topic:: Reading' $'\n:key-topic: Handoff Book'
 print -r -- "
 == Chapters
 
@@ -40,7 +40,7 @@ link:$chapter1.adoc[Chapter 1]
 link:$chapter2.adoc[Chapter 2]
 link:$chapter3.adoc[Chapter 3]" >> "$fixture/notes/$generation.adoc"
 for item in "${chapter1}:Chapter 1" "${chapter2}:Chapter 2" "${chapter3}:Chapter 3"; do
-  uuid="${item%%:*}"; title="${item#*:}"; write_doc "$uuid" "$title" note $'== Source\n\nBook:: Handoff Book\nChapter locator:: source.xhtml' $'\n:key-topic: Reading'
+  uuid="${item%%:*}"; title="${item#*:}"; write_doc "$uuid" "$title" note $'== Source\n\nBook:: Handoff Book\nChapter locator:: source.xhtml' $'\n:key-topic: Handoff Book'
 done
 for item in "${chapter1}:Chapter 1" "${chapter2}:Chapter 2" "${chapter3}:Chapter 3"; do
   uuid="${item%%:*}"
@@ -59,7 +59,7 @@ Lexical type:: word
 
 == Meaning
 
-Definition:: readable $lemma" $'\n:key-topic: Reading'
+Definition:: readable $lemma" $'\n:key-topic: Handoff Book'
 done
 print -r -- "
 == Chapter

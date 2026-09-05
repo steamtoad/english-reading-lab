@@ -44,6 +44,13 @@ current_source_order="$(erl_chapter_source_order "$vault" "$generation_file" "$c
 chapter_file="$(erl_doc_path "$vault" "$chapter" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Chapter Note is missing: $chapter"
 chapter_key="$(erl_doc_attr "$chapter_file" key-topic)"
 [[ -n "$chapter_key" ]] || erl_fail 30 error STATE_CONFLICT "Chapter Note has no canonical key-topic binding"
+work_id="$(jq -r '.work_id // empty' "$generation_file")"
+work_file="$(erl_find_work_file "$vault" "$work_id" 2>/dev/null)" || erl_fail 30 error STATE_CONFLICT "Generation work manifest is missing: $work_id"
+book_title="$(jq -r '.title // empty' "$work_file")"
+[[ -n "$book_title" ]] || erl_fail 30 error STATE_CONFLICT "Logical work has no canonical title"
+[[ "$chapter_key" == "$book_title" ]] || erl_fail 30 error STATE_CONFLICT \
+  "Chapter key-topic does not equal the canonical book title" \
+  "$(jq -cn --arg chapter "$chapter" --arg expected "$book_title" --arg actual "$chapter_key" '{chapter_uuid:$chapter,expected_key_topic:$expected,actual_key_topic:$actual}')"
 max_source_order=0
 for prior_chapter in "${(@f)$(jq -r '.sequence[]?.chapter_uuid // empty' "$generation_file" | sort -u)}"; do
   [[ -n "$prior_chapter" ]] || continue

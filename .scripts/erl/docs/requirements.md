@@ -183,8 +183,9 @@ ERL-specific AsciiDoc attributes запрещены.
 
 ```text
 ERL-DOC-005
-ERL не переопределяет :key-topic: как скрытый foreign key для WORK_ID,
-generation, Chapter identity, sequence или другого ERL state.
+ERL сохраняет :key-topic: как host-defined human-readable grouping, а не
+скрытый foreign key. Для ERL Book grouping значение равно exact canonical
+title книги и не используется как WORK_ID, generation или Chapter identity.
 ```
 
 ```text
@@ -414,19 +415,17 @@ lexical policy, card format, source processing order и ingestion policy.
 
 ```text
 ERL-BOOK-012
-При создании Book Topic пользователь или ERL workflow явно задаёт непустой
-host-compatible thematic key для :key-topic:. Этот key не является WORK_ID,
-generation identity или ERL foreign key и не используется для восстановления
-ERL relationships.
+При создании Book Topic ERL устанавливает host-compatible :key-topic: в exact
+canonical title logical work. Explicit --key-topic допустим только при exact
+совпадении; mismatch блокируется до mutation. Key не является ERL foreign key.
 ```
 
 ```text
 ERL-BOOK-013
 Book Topic создаётся canonical Topic constructor и соблюдает host Topic
 presentation contract для title, :description: и :doclink:.
-Visible title, :description: и :doclink: основаны на canonical logical-work title.
-Logical-work metadata и название произведения хранятся в work state
-и при необходимости в body, не подменяя :key-topic:.
+Visible title, :description:, :doclink: и :key-topic: основаны на одном canonical
+logical-work title. Logical-work identity хранится в work state, а не в :key-topic:.
 ```
 
 ```text
@@ -513,8 +512,8 @@ ERL-CHAPTER-011
 
 ```text
 ERL-CHAPTER-012
-Каждая materialized Chapter Note наследует exact host-defined `:key-topic:`
-текущей active Book Topic своей generation.
+Каждая materialized Chapter Note содержит :key-topic:, exact equal canonical
+book title, visible title и :key-topic: active Book Topic своей generation.
 ```
 
 ```text
@@ -527,7 +526,8 @@ Topic. Book Topic содержит section `Chapters` с unique reciprocal canon
 ```text
 ERL-CHAPTER-014
 При создании новой active generation reused durable Chapter Note сохраняет UUID,
-заменяет прежнюю Book Topic link и синхронизирует `:key-topic:` с новой Topic.
+заменяет прежнюю Book Topic link и устанавливает :key-topic: в exact canonical
+title новой active Book Topic.
 Две active Topic attachments для одной Chapter запрещены.
 ```
 
@@ -984,8 +984,8 @@ Ingestion одного EXTRACTION_ID идемпотентна относител
 
 ```text
 ERL-ING-010
-Созданные Vocabulary и Occurrence Memo наследуют exact :key-topic:
-текущей Chapter; existing global Vocabulary не перепривязывается.
+Созданные Vocabulary и Occurrence Memo наследуют exact canonical book-title
+:key-topic: текущей Chapter; existing global Vocabulary не изменяется.
 ```
 
 ```text
@@ -1622,9 +1622,9 @@ ERL document не содержит plugin-specific AsciiDoc attributes :erl-*.
 
 ```text
 ERL-CHECK-021
-Book Topic содержит host-compatible :key-topic:, не используемый как WORK_ID,
-и удовлетворяет canonical host Topic presentation contract для title logical work.
-Missing Topic, wrong canonical type и wrong Book presentation диагностируются раздельно.
+Book Topic содержит :key-topic:, exact equal canonical visible logical-work title,
+и удовлетворяет host Topic presentation contract. Title/key diagnostic содержит
+Book Topic UUID, expected и actual values и не изменяет document/state.
 ```
 
 ```text
@@ -1666,7 +1666,8 @@ HOME_LAYOUT_MIGRATION_REQUIRED при обнаружении nested vault/ бе�
 
 ```text
 ERL-CHECK-027
-erl-check read-only проверяет exact Chapter `:key-topic:`, единственную Chapter→Topic
+erl-check read-only проверяет exact equality canonical Book title, Topic и Chapter
+`:key-topic:`, единственную Chapter→Topic
 link, reciprocal unique Topic→Chapter links, их source order и отсутствие двух
 active Topic attachments для одной durable Chapter Note.
 ```
@@ -1773,6 +1774,16 @@ deterministic naming contract ERL-TEST-001: tasks каждой дельты яв
 ```
 
 ```text
+ERL-TEST-003
+Каждый положительный ERL integration fixture соответствует всем применимым
+canonical contracts текущего baseline. Integration test достигает assertions
+заявленного поведения и не завершается несвязанной validation failure из-за
+устаревших fixture data. При book-title key policy Book, Chapters и применимые
+Memo fixture используют canonical Book title как :key-topic:, а отдельная
+тематическая информация может оставаться в человекочитаемом body.
+```
+
+```text
 ERL-AGENT-SETUP-001
 Tracked .scripts/erl/dev/erl-openclaw-agent-setup.zsh является self-contained
 versioned source of truth для ignored локального OpenClaw workspace Lexi и не
@@ -1832,6 +1843,22 @@ ERL-AGENT-SETUP-009
 staging и post-check. Host implementation root, пользовательский Zettelkasten,
 parent path и nested vault/ не могут подменять Lexi target Vault. Generated
 TOOLS.md, common reference copies и embedded setup payload соблюдают тот же contract.
+```
+
+```text
+ERL-AGENT-SETUP-010
+Перед каждым L2/L3 apply Lexi показывает отдельное поле Vault с absolute canonical
+ERL_HOME и запрашивает отдельное подтверждение показанного dry-run plan. Сразу
+перед mutation ERL_HOME, repository/target-home markers и plan повторно
+проверяются; любое отличие отменяет consent и требует нового dry-run и confirmation.
+```
+
+```text
+ERL-AGENT-SETUP-011
+После mutation Lexi запускает canonical erl-check.zsh с тем же exact Vault и
+наиболее широким изменённым work/generation scope. Итоговый отчёт содержит
+absolute Vault, validation scope и checker result; missing, failed или cross-Vault
+post-check запрещает success report и не вызывает повторную mutation.
 ```
 
 ```text

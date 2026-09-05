@@ -16,11 +16,11 @@ policy_base='{"schema_version":1,"threshold":["C1"],"lexical_types":["word"]}'
 policy_identity="$(print -r -- "$policy_base" | jq -cS . | shasum -a 256 | awk '{print "sha256:" $1}')"
 print -r -- "$policy_base" | jq --arg identity "$policy_identity" '.+{identity:$identity}' > "$fixture/policy.json"
 
-"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --title 'Bound Book' --key-topic 'Reading One' --policy-file "$fixture/policy.json" --apply --json > "$fixture/first.json"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --title 'Bound Book' --key-topic 'Bound Book' --policy-file "$fixture/policy.json" --apply --json > "$fixture/first.json"
 generation1="$(jq -r .data.generation_uuid "$fixture/first.json")"; work="$(jq -r .data.work_id "$fixture/first.json")"
 source_file=("$vault/.state/erl/works"/*/sources/*.json); chapter="$(jq -r '.chapters[0].chapter_uuid' "$source_file[1]")"
 chapter_file="$vault/notes/$chapter.adoc"; topic1="$vault/notes/$generation1.adoc"
-[[ "$(awk '/^:key-topic:/{sub(/^:key-topic:[[:space:]]*/,"");print;exit}' "$chapter_file")" == 'Reading One' ]]
+[[ "$(awk '/^:key-topic:/{sub(/^:key-topic:[[:space:]]*/,"");print;exit}' "$chapter_file")" == 'Bound Book' ]]
 [[ "$(grep -cF "link:$generation1.adoc[Bound Book]" "$chapter_file")" == 1 ]]
 [[ "$(grep -cF "link:$chapter.adoc[Chapter 1]" "$topic1")" == 1 ]]
 "$erl/erl-check.zsh" --vault "$vault" --work "$work" --json | jq -e '.status=="ok"' >/dev/null
@@ -30,7 +30,7 @@ fingerprint="$(jq -r .data.plan_fingerprint "$fixture/reduce-plan.json")"
 "$erl/erl-book-reduce.zsh" --vault "$vault" --generation "$generation1" --plan-fingerprint "$fingerprint" --apply --json > "$fixture/reduce.json"
 chapter_before="$(shasum -a 256 "$chapter_file")"
 set +e
-ERL_TEST_INTERRUPT_BOOK_BINDING_AFTER_DOCUMENTS=1 "$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work" --key-topic 'Reading Two' --policy-file "$fixture/policy.json" --apply --json > "$fixture/interrupted.json"
+ERL_TEST_INTERRUPT_BOOK_BINDING_AFTER_DOCUMENTS=1 "$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work" --key-topic 'Bound Book' --policy-file "$fixture/policy.json" --apply --json > "$fixture/interrupted.json"
 interrupt_rc=$?
 set -e
 [[ "$interrupt_rc" == 60 ]]
@@ -38,17 +38,17 @@ txid="$(for tx_file in "$vault"/.state/erl/transactions/*/transaction.json(N); d
 "$erl/erl-transaction-recover.zsh" --vault "$vault" --txid "$txid" --apply --json | jq -e '.changed==true and .data.recovery_action=="rollback"' >/dev/null
 [[ "$chapter_before" == "$(shasum -a 256 "$chapter_file")" ]]
 
-"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work" --key-topic 'Reading Two' --policy-file "$fixture/policy.json" --apply --json > "$fixture/second.json"
+"$erl/erl-book-ingest.zsh" --vault "$vault" --source "$fixture/book.txt" --work-id "$work" --key-topic 'Bound Book' --policy-file "$fixture/policy.json" --apply --json > "$fixture/second.json"
 generation2="$(jq -r .data.generation_uuid "$fixture/second.json")"; topic2="$vault/notes/$generation2.adoc"
 [[ "$(jq -r '.chapters[0].chapter_uuid' "$source_file[1]")" == "$chapter" ]]
-[[ "$(awk '/^:key-topic:/{sub(/^:key-topic:[[:space:]]*/,"");print;exit}' "$chapter_file")" == 'Reading Two' ]]
+[[ "$(awk '/^:key-topic:/{sub(/^:key-topic:[[:space:]]*/,"");print;exit}' "$chapter_file")" == 'Bound Book' ]]
 [[ "$(grep -cF "link:$generation2.adoc[Bound Book]" "$chapter_file")" == 1 ]]
 ! grep -qF "link:$generation1.adoc[Bound Book]" "$chapter_file"
 [[ "$(grep -cF "link:$chapter.adoc[Chapter 1]" "$topic2")" == 1 ]]
 "$erl/erl-check.zsh" --vault "$vault" --work "$work" --json | jq -e '.status=="ok"' >/dev/null
 
 # Negative checker diagnostics distinguish key, attachment count and reciprocity/order.
-cp "$chapter_file" "$fixture/chapter.saved"; sed -i.bak 's/:key-topic: Reading Two/:key-topic: Wrong/' "$chapter_file"; rm -f "$chapter_file.bak"
+cp "$chapter_file" "$fixture/chapter.saved"; sed -i.bak 's/:key-topic: Bound Book/:key-topic: Wrong/' "$chapter_file"; rm -f "$chapter_file.bak"
 set +e; check="$($erl/erl-check.zsh --vault "$vault" --work "$work" --json)"; rc=$?; set -e
 [[ "$rc" == 10 ]] && jq -e 'any(.diagnostics[];.code=="ERL-CHECK-027" and .reason=="mismatched_key")' <<< "$check" >/dev/null
 cp "$fixture/chapter.saved" "$chapter_file"; sed -i.bak "/link:$generation2.adoc\[Bound Book\]/a\\
@@ -71,7 +71,7 @@ print -r -- "= Chapter 2
 :description: Chapter 2
 :doclink: link:$chapter2.adoc[Chapter 2]
 :docfilename: $chapter2.adoc
-:key-topic: Reading Two
+:key-topic: Bound Book
 
 == Book
 

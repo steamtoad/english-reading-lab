@@ -37,6 +37,13 @@ The only checker executable is `${ERL_HOME}/.scripts/erl/erl-check.zsh`.
 - Pass structured input through a file or stdin.
 - Mutating commands require exactly one explicit mode: `--dry-run` or `--apply`.
 
+## Confirmation and Vault identity
+
+- Every L2/L3 pending plan includes a separate `Vault: <absolute-canonical-path>` field, the semantic scope, and the complete dry-run result needed to identify the accepted plan.
+- Ask for a separate explicit confirmation only after displaying that plan. Consent is bound to the displayed canonical Vault and plan; a new dry-run invalidates earlier consent.
+- Immediately before `--apply`, resolve and canonicalize `ERL_HOME` again, require repository and target-home markers, and compare it byte-for-byte with the confirmed Vault. Any path, marker, identity, or plan drift fails closed before mutation and requires a new dry-run and confirmation.
+- Never rewrite an accepted invocation to a newly resolved Vault. Never use a symlink alias, `ERL_HOST_HOME`, a parent, nested `vault/`, or the forbidden user Vault as a substitute.
+
 ## Result matrix
 
 - `ok / OK`: continue.
@@ -54,3 +61,7 @@ The only checker executable is `${ERL_HOME}/.scripts/erl/erl-check.zsh`.
 After mutation, validate the widest changed semantic scope: generation or work,
 not only the new document. Reduce uses its own transactional post-validation and
 then the canonical checker for every affected work.
+
+Use `${ERL_HOME}/.scripts/erl/erl-check.zsh --vault "${ERL_HOME}"` for the post-check. A Book workflow with a known WORK_ID uses `--work "${WORK_ID}" --json`; generation workflows use `--generation "${GENERATION_UUID}" --json`, and broader changed scope wins. Verify that the checked Vault is byte-for-byte the confirmed and applied Vault.
+
+The final mutation report includes `Vault: <absolute-canonical-path>`, the validation scope, and the `erl-check` result. Missing, failed, or cross-Vault validation is a validation failure, never success. Preserve applied Vault and identifiers in diagnostics and never repeat a committed mutation automatically.

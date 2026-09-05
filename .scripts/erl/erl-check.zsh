@@ -189,7 +189,7 @@ record_reference() {
 
 check_document_common() {
   local uuid="$1" role="$2" generation="$3" chapter="$4" work_id="$5"
-  local file type
+  local file type work_file expected_title
   file="$(doc_path "$uuid")" || {
     if [[ "$role" == book ]]; then
       add_diag error ERL-CHECK-021 "Registered Book generation has no canonical Topic" diagnostic_kind missing_topic document_uuid "$uuid" generation_uuid "$generation" work_id "$work_id"
@@ -210,15 +210,15 @@ check_document_common() {
         add_diag error ERL-CHECK-021 "Book generation document has the wrong canonical type" diagnostic_kind wrong_type document_uuid "$uuid" generation_uuid "$generation" work_id "$work_id"
         break
       fi
-      local key title description doclink expected_title work_file
+      local key title description doclink
       key="$(doc_attr "$file" key-topic)"
       title="$(awk 'NR==1{sub(/^= /,"");print;exit}' "$file")"
       description="$(doc_attr "$file" description)"
       doclink="$(doc_attr "$file" doclink)"
       work_file="${work_ids[$work_id]-}"
       expected_title="$(json_value "$work_file" '.title')"
-      if [[ -z "$key" || "$key" == "$work_id" || -z "$expected_title" || "$title" != "$expected_title" || "$description" != "$expected_title" || "$doclink" != "link:$uuid.adoc[$expected_title]" ]]; then
-        add_diag error ERL-CHECK-021 "Book Topic does not present the logical work title using the host Topic contract" diagnostic_kind wrong_presentation document_uuid "$uuid" generation_uuid "$generation" work_id "$work_id"
+      if [[ -z "$key" || -z "$expected_title" || "$key" != "$expected_title" || "$title" != "$expected_title" || "$description" != "$expected_title" || "$doclink" != "link:$uuid.adoc[$expected_title]" ]]; then
+        add_diag error ERL-CHECK-021 "Book Topic title/key does not match the canonical logical-work title" diagnostic_kind wrong_presentation document_uuid "$uuid" generation_uuid "$generation" work_id "$work_id" expected_key_topic "$expected_title" actual_key_topic "$key"
       fi
       ;;
     chapter)
@@ -234,7 +234,8 @@ check_document_common() {
           add_diag error ERL-CHECK-028 "Memo attachment Chapter is missing" reason missing_chapter generation_uuid "$generation" chapter_uuid "$chapter" document_uuid "$uuid"
         else
           memo_key="$(doc_attr "$file" key-topic)"; chapter_key="$(doc_attr "$chapter_file" key-topic)"
-          [[ -n "$memo_key" && "$memo_key" == "$chapter_key" ]] || add_diag error ERL-CHECK-028 "Memo and Chapter key-topic values differ" reason mismatched_key generation_uuid "$generation" chapter_uuid "$chapter" document_uuid "$uuid"
+          work_file="${work_ids[$work_id]-}"; expected_title="$(json_value "$work_file" '.title')"
+          [[ -n "$memo_key" && -n "$expected_title" && "$memo_key" == "$chapter_key" && "$memo_key" == "$expected_title" ]] || add_diag error ERL-CHECK-028 "Memo key-topic does not match its Chapter canonical book title" reason mismatched_key generation_uuid "$generation" chapter_uuid "$chapter" document_uuid "$uuid" expected_key_topic "$expected_title" actual_key_topic "$memo_key"
           chapter_links=("${(@f)$(erl_section_links "$file" Chapter)}")
           chapter_links=("${(@)chapter_links:#}")
           (( ${#chapter_links} == 1 )) && [[ "${chapter_links[1]}" == "$chapter" ]] || add_diag error ERL-CHECK-028 "Memo must contain exactly one link to its recorded Chapter" reason memo_chapter_link generation_uuid "$generation" chapter_uuid "$chapter" document_uuid "$uuid"
@@ -624,6 +625,7 @@ for work_file in "$works_root"/*/work.json(N); do
   [[ -n "$generation_file" && -f "$generation_file" ]] || continue
   topic_file="$(doc_path "$generation_uuid" 2>/dev/null)" || continue
   topic_key="$(doc_attr "$topic_file" key-topic)"
+  expected_title="$(json_value "$work_file" '.title')"
   source_id="$(json_value "$generation_file" '.source_id')"
   source_file="$(erl_find_source_file "$vault" "$source_id" 2>/dev/null)" || continue
   expected_chapters=("${(@f)$(jq -r '.chapters | sort_by(.source_order)[]?.chapter_uuid' "$source_file")}"); expected_chapters=("${(@)expected_chapters:#}")
@@ -634,7 +636,7 @@ for work_file in "$works_root"/*/work.json(N); do
   for chapter_uuid in "${expected_chapters[@]}"; do
     chapter_file="$(doc_path "$chapter_uuid" 2>/dev/null)" || { add_diag error ERL-CHECK-027 "Registered Chapter Note is missing" reason missing_chapter work_id "$work_id" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid"; continue; }
     chapter_key="$(doc_attr "$chapter_file" key-topic)"
-    [[ -n "$chapter_key" && "$chapter_key" == "$topic_key" ]] || add_diag error ERL-CHECK-027 "Chapter and active Book Topic key-topic values differ" reason mismatched_key work_id "$work_id" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid"
+    [[ -n "$chapter_key" && -n "$expected_title" && "$topic_key" == "$expected_title" && "$chapter_key" == "$expected_title" ]] || add_diag error ERL-CHECK-027 "Chapter and active Book Topic key-topic values must match the canonical book title" reason mismatched_key work_id "$work_id" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid" expected_key_topic "$expected_title" actual_key_topic "$chapter_key" topic_actual_key_topic "$topic_key"
     book_links=("${(@f)$(erl_section_links "$chapter_file" Book)}"); book_links=("${(@)book_links:#}")
     if (( ${#book_links} != 1 )); then
       add_diag error ERL-CHECK-027 "Chapter must have exactly one active Book Topic attachment" reason chapter_topic_count work_id "$work_id" generation_uuid "$generation_uuid" chapter_uuid "$chapter_uuid"

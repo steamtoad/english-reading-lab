@@ -101,6 +101,11 @@ expect_failure 'missing Change artifact: design.md' --repo "$fixture/repo" --pos
 
 # The delta itself remains structurally complete and defines all stable IDs.
 change="$repo/openspec/changes/add-openspec-archive-contract"
+if [[ ! -d "$change" ]]; then
+  archived_changes=("$repo"/openspec/changes/archive/<->-<->-<->-add-openspec-archive-contract(N))
+  (( ${#archived_changes} )) || { print -ru2 -- 'FAIL: archive-contract Change history is missing'; exit 1; }
+  change="${archived_changes[-1]}"
+fi
 spec="$change/specs/openspec-governance/spec.md"
 for artifact in proposal.md design.md tasks.md specs/openspec-governance/spec.md; do
   [[ -f "$change/$artifact" ]] || { print -ru2 -- "FAIL: missing archive-contract artifact: $artifact"; exit 1; }

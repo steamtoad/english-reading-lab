@@ -22,14 +22,14 @@ print -r -- "$policy_base" | jq --arg identity "$policy_identity" '.+{identity:$
 
 export ERL_HOST_HOME="$repo/fixtures/host-contract"
 "$ingest" --vault "$vault" --source "$fixture/book.txt" --title 'The Left Hand of Darkness' \
-  --key-topic 'English Reading' --policy-file "$fixture/policy.json" --apply --json > "$fixture/result.json"
+  --policy-file "$fixture/policy.json" --apply --json > "$fixture/result.json"
 generation="$(jq -r '.data.generation_uuid' "$fixture/result.json")"
 topic="$vault/notes/$generation.adoc"
 jq -e '.status=="ok" and .changed==true and .data.created.topics==1' "$fixture/result.json" >/dev/null
 [[ "$(awk 'NR==1{sub(/^= /,"");print}' "$topic")" == 'The Left Hand of Darkness' ]]
 [[ "$(awk '/^:description:/{sub(/^:description:[[:space:]]*/,"");print;exit}' "$topic")" == 'The Left Hand of Darkness' ]]
 [[ "$(awk '/^:doclink:/{sub(/^:doclink:[[:space:]]*/,"");print;exit}' "$topic")" == "link:$generation.adoc[The Left Hand of Darkness]" ]]
-[[ "$(awk '/^:key-topic:/{sub(/^:key-topic:[[:space:]]*/,"");print;exit}' "$topic")" == 'English Reading' ]]
+[[ "$(awk '/^:key-topic:/{sub(/^:key-topic:[[:space:]]*/,"");print;exit}' "$topic")" == 'The Left Hand of Darkness' ]]
 
 # A host constructor that returns a type-compatible but wrongly presented Topic
 # must not publish generation state and its provisional document is rolled back.
@@ -45,7 +45,7 @@ fault_vault="$fixture/fault-vault"
 mkdir -p "$fault_vault/notes"
 set +e
 ERL_HOST_HOME="$fault_host" "$ingest" --vault "$fault_vault" --source "$fixture/book.txt" --title 'Expected Book' \
-  --key-topic 'English Reading' --policy-file "$fixture/policy.json" --apply --json > "$fixture/fault.json"
+  --policy-file "$fixture/policy.json" --apply --json > "$fixture/fault.json"
 fault_rc=$?
 set -e
 [[ "$fault_rc" == 60 ]]
